@@ -1,0 +1,19 @@
+# Environment for external users and clusters (e.g. CC-IN2P3): conda env create -f environment.yml
+name: ls11
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy
+  - scipy
+  - astropy
+  - fitsio
+  - healpy
+  - pyyaml
+  - matplotlib
+  - pytest
+  - pip
+  - pip:
+      - kcorrect==5.1.9
+      - lephare==1.0.0
+      - -e .

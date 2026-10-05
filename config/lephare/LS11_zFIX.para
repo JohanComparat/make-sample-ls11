@@ -1,0 +1,73 @@
+# LePhare (python, lephare >= 1.0) configuration for the LS DR11 BGS-like stellar masses.
+# Reconstructs the DR10 run (LS10_zFIX.para, from the headers of its libraries): BC03 Chabrier
+# composite library (BC03COMB_MOD.list), Calzetti attenuation, E(B-V) up to 0.7, physical
+# emission lines, redshift fixed to BEST_Z. Filters: DECam grizW1W2 curves written by
+# ls11samples.sed.filters into $LEPHAREDIR/filt/ls11 (the same curves as kcorrect).
+# Paths relative to $LEPHAREDIR. Fluxes in erg/s/cm2/Hz, errors already include the error floor.
+
+STAR_SED        sed/STAR/STAR_MOD_ALL.list
+STAR_LIB        LIB_STAR_LS11
+STAR_LIB_IN     LIB_STAR_LS11
+STAR_LIB_OUT    STAR_LS11
+STAR_FSCALE     3.432E-09
+
+QSO_SED         sed/QSO/SALVATO09/AGN_MOD.list
+QSO_LIB         LIB_QSO_LS11
+QSO_LIB_IN      LIB_QSO_LS11
+QSO_LIB_OUT     QSO_LS11
+QSO_FSCALE      1.
+
+GAL_SED         sed/GAL/BC03_CHAB/BC03COMB_MOD.list
+GAL_FSCALE      1.
+GAL_LIB         LIB_BC03_LS11
+GAL_LIB_IN      LIB_BC03_LS11
+GAL_LIB_OUT     BC03_LS11
+# SEL_AGE not set: all 221 BC03 ages (as for DR10; 12 SEDs x 221 ages = 2652 models)
+AGE_RANGE       0.,13.5e9
+
+FILTER_LIST     ls11/decam_g.pb,ls11/decam_r.pb,ls11/decam_i.pb,ls11/decam_z.pb,ls11/wise_w1.pb,ls11/wise_w2.pb
+TRANS_TYPE      1
+FILTER_CALIB    0,0,0,0,0,0
+FILTER_FILE     filter_ls11
+
+MAGTYPE         AB
+Z_STEP          0.005,0.,1.0
+COSMOLOGY       67.74,0.3089,0.6911
+MOD_EXTINC      0,99
+EXTINC_LAW      SB_calzetti.dat
+EB_V            0.,0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.6,0.7
+EM_LINES        PHYS
+EM_DISPERSION   1.
+LIB_ASCII       NO
+
+INP_TYPE        F
+CAT_MAG         AB
+CAT_FMT         MEME
+CAT_LINES       0,1000000000
+CAT_TYPE        LONG
+CAT_OUT         zfix.out
+ERR_SCALE       0.,0.,0.,0.,0.,0.
+ERR_FACTOR      1.0
+ZPHOTLIB        BC03_LS11
+ADD_EMLINES     0,10000
+ZFIX            YES
+Z_INTERP        NO
+DZ_WIN          1.0
+MIN_THRES       0.02
+GLB_CONTEXT     0
+FORB_CONTEXT    -1
+MAG_ABS         -26,-8
+MAG_REF         2
+Z_RANGE         0.,1.0
+EBV_RANGE       0,9
+MABS_METHOD     1
+MABS_CONTEXT    -1
+MABS_REF        2
+MABS_FILT       1,2,3,4,5,6
+MABS_ZBIN       0,6
+AUTO_ADAPT      NO
+SPEC_OUT        NO
+CHI2_OUT        NO
+PDZ_OUT         NONE
+RM_DISCREPANT_BD 500
+VERBOSE         NO

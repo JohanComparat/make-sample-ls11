@@ -1,0 +1,104 @@
+"""LePhare (python, >= 1.0) at fixed redshift, configured by config/lephare/LS11_zFIX.para.
+
+The first use writes the shared DECam/WISE filters into $LEPHAREDIR/filt/ls11, downloads the
+auxiliary files the configuration needs (SEDs, extinction law) and builds the libraries (filters,
+sedtolib, mag_gal) in $LEPHAREWORK; later uses reuse them.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from collections.abc import Mapping
+from pathlib import Path
+
+import numpy as np
+
+from .common import BANDS, NANOMAGGY_CGS, empty_result, photometry, valid_z
+from .filters import write_lephare_filters
+
+log = logging.getLogger(__name__)
+PARA = Path(__file__).resolve().parents[2] / "config" / "lephare" / "LS11_zFIX.para"
+
+
+class LephareBackend:
+    name = "lephare"
+
+    def __init__(self, cfg: dict, para: str | Path | None = None, rebuild: bool = False):
+        import lephare as lp
+
+        self.lp = lp
+        self.cfg = cfg
+        self.config = lp.read_config(str(para or PARA))
+        lephare_dir = Path(os.environ.get("LEPHAREDIR", lp.LEPHAREDIR))
+        self.config["FILTER_REP"] = lp.keyword("FILTER_REP", str(lephare_dir / "filt"))
+        write_lephare_filters(lephare_dir)
+        self._get_data(lephare_dir)
+        work = Path(os.environ["LEPHAREWORK"])
+        # the .doc file is written last: an empty one means an interrupted build
+        doc = work / "lib_mag" / f"{self.config['GAL_LIB_OUT'].value}.doc"
+        if rebuild or not doc.exists() or doc.stat().st_size == 0:
+            log.info("building the LePhare libraries in %s", work)
+            lp.prepare(self.config)
+
+    def _get_data(self, lephare_dir: Path) -> None:
+        dr = self.lp.data_retrieval
+        files = [f for f in dr.config_to_required_files(self.config) if "filt/ls11/" not in f]
+        missing = [f for f in files if not (lephare_dir / f).exists()]
+        if missing:
+            import tempfile
+
+            log.info("downloading %d LePhare auxiliary files to %s", len(missing), lephare_dir)
+            with tempfile.TemporaryDirectory() as tmp:
+                registry = str(Path(tmp) / "data_registry.txt")
+                dr.download_registry_from_github(outfile=registry)
+                retriever = dr.make_retriever(registry_file=registry, data_path=str(lephare_dir))
+                dr.download_all_files(retriever, missing, ignore_registry=False)
+
+    def table(self, t: Mapping):
+        from astropy.table import Table
+
+        z, f, e = photometry(t, self.cfg)
+        tab = Table()
+        tab["id"] = np.arange(len(z))
+        good = np.isfinite(e) & np.isfinite(f)
+        for i, b in enumerate(BANDS):
+            tab[f"f{i}"] = np.where(good[:, i], f[:, i] * NANOMAGGY_CGS, -99.0)
+            tab[f"e{i}"] = np.where(good[:, i], e[:, i] * NANOMAGGY_CGS, -99.0)
+        tab["context"] = (good * (1 << np.arange(len(BANDS)))).sum(axis=1).astype(np.int64)
+        tab["zspec"] = z
+        tab["string_input"] = np.full(len(z), "x")
+        return tab, valid_z(z)
+
+    def fit(self, t: Mapping) -> dict[str, np.ndarray]:
+        n = len(t["BEST_Z"])
+        out = empty_result(n)
+        tab, ok = self.table(t)
+        if not ok.any():
+            return out
+        res, _ = self.lp.process(self.config, tab[ok])
+        idx = np.flatnonzero(ok)
+
+        def col(name):
+            v = np.asarray(res[name], np.float64)
+            return np.where((v > -99) & np.isfinite(v), v, np.nan)
+
+        out["LOGMSTAR"][idx] = col("MASS_MED")
+        out["LOGMSTAR_LO"][idx] = col("MASS_INF")
+        out["LOGMSTAR_HI"][idx] = col("MASS_SUP")
+        best = col("MASS_BEST")
+        fill = ~np.isfinite(out["LOGMSTAR"][idx])
+        out["LOGMSTAR"][idx[fill]] = best[fill]
+        out["LOGSFR"][idx] = col("SFR_MED")
+        out["ABSMAG_R"][idx] = col("MAG_ABS_ls11/decam_r.pb") if "MAG_ABS_ls11/decam_r.pb" in res.colnames \
+            else col(_absmag_column(res.colnames))
+        out["CHI2"][idx] = col("CHI_BEST")
+        self.last = res
+        return out
+
+
+def _absmag_column(names) -> str:
+    cand = [c for c in names if c.startswith("MAG_ABS") and ("decam_r" in c or c.endswith("_2") or c == "MAG_ABS2")]
+    if not cand:
+        raise KeyError(f"no r-band absolute magnitude among {list(names)[:40]}")
+    return cand[0]

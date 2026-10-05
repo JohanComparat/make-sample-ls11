@@ -58,6 +58,17 @@ redshift:
   zspec_exclude_surveys: [COSMOS2015]       # photometric "reference" redshifts in the pz files
   photoz_priority: [Z_PHOT_MEAN_I, Z_PHOT_MEAN]
 
+kcorr:                    # step 3, kcorrect v5 at fixed z = BEST_Z
+  code: kcorrect
+  bands_in: [G, R, I, Z, W1, W2]
+  band_shift: 0.0           # ABSMAG_<b> in rest-frame DECam bands (ABSMAG_R01: SDSS ^{0.1}r)
+  z_range: [0.0, 1.0]
+  nz: 500
+  complete_set_zmax: 0.1    # SED set used for the K_95(z) completeness curve (vlim.mr_limit_curve)
+
+sed:                      # step 4: production stellar-mass code (chosen with benchmarks/)
+  code: kcorrect            # kcorrect | lephare | cigale | eazy | dsps
+
 randoms:
   density_per_file: 2500    # deg^-2, checked against the DENSITY header keyword
   chunk_rows: 5000000
