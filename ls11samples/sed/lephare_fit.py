@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from .common import BANDS, NANOMAGGY_CGS, empty_result, photometry, valid_z
-from .filters import write_lephare_filters
+from .filters import pivot_wavelength, write_lephare_filters
 
 log = logging.getLogger(__name__)
 PARA = Path(__file__).resolve().parents[2] / "config" / "lephare" / "LS11_zFIX.para"
@@ -93,10 +93,19 @@ class LephareBackend:
         out["LOGSFR"][idx] = col("SFR_MED")
         ir = BANDS.index("R")
         mabs = np.asarray(res["MAG_ABS()"], np.float64)[:, ir]  # (n, nfilter), filter order = BANDS
-        emabs = np.asarray(res["EMAG_ABS()"], np.float64)[:, ir]
         good = (mabs > -90) & (mabs < 0)
         out["MABS_R"][idx] = np.where(good, mabs, np.nan)
-        out["MABS_R_ERR"][idx] = np.where(good & (emabs >= 0) & (emabs < 9), emabs, np.nan)
+        # LePhare 1.0 EMAG_ABS() holds m - M, not an error. With MABS_METHOD 1 the absolute magnitude
+        # comes from the observed band closest to rest-frame r at z: its magnitude error (with the
+        # common floor) is the error at fixed z.
+        z, f, e = photometry(t, self.cfg)
+        lam = np.array([pivot_wavelength(b) for b in BANDS])
+        near = np.argmin(np.abs(lam[None, :] - lam[ir] * (1 + z[ok, None])), axis=1)
+        rows = np.arange(ok.sum())
+        fb, eb = f[ok][rows, near], e[ok][rows, near]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            err = np.where(fb > 0, 2.5 / np.log(10) * eb / fb, np.nan)
+        out["MABS_R_ERR"][idx] = np.where(good & np.isfinite(err), err, np.nan)
         out["CHI2"][idx] = col("CHI_BEST")
         self.last = res
         return out

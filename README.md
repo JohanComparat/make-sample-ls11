@@ -93,8 +93,8 @@ How each code gets its values and errors:
 
 | code | LOGMSTAR | LOGMSTAR_ERR | MABS_R ± MABS_R_ERR |
 |---|---|---|---|
-| LePhare | `MASS_MED` | half the 68% interval | `MAG_ABS`, `EMAG_ABS` |
-| CIGALE | log of the Bayesian mean | Bayesian error | rest-frame L_ν(r) |
+| LePhare | `MASS_MED` | half the 68% interval | `MAG_ABS`; error of the observed band closest to rest-frame r (LePhare 1.0 `EMAG_ABS` holds m − M) |
+| CIGALE | log of the Bayesian mean | Bayesian error (pcigale floor: 5%, i.e. ≥ 0.022 dex) | rest-frame L_ν(r) (floor ≥ 0.054 mag) |
 | kcorrect | best fit | standard deviation over 20 Monte Carlo flux realisations | best fit and the same realisations |
 
 **Volume-limited samples (step 5).** These are built in Mr (thresholds −18 … −22.5) and in M*
