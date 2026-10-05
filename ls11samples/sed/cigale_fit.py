@@ -7,6 +7,10 @@ Model grid (``sed.cigale`` in the configuration, defaults below): delayed-tau SF
 nebular emission, Calzetti-like modified starburst attenuation; redshifts rounded to
 ``redshift_decimals`` so the models are computed once per redshift step. The rest-frame DECam r
 luminosity (``restframe_parameters``, L_nu at 10 pc) gives MABS_R and its Bayesian error.
+pcigale's ``additionalerror`` (10% of the flux added to every band by default) is set to 0: the
+input errors already carry the common error floor. pcigale floors the errors of extensive
+properties at 5% of the value (``managers/results.py``, not configurable): LOGMSTAR_ERR >= 0.0217
+dex and MABS_R_ERR >= 0.054 mag.
 
 Each fit runs in a temporary directory under $TMPDIR (node-local on the cluster), removed after
 the results are read, so nothing accumulates on disk.
@@ -33,6 +37,7 @@ log = logging.getLogger(__name__)
 FILTER_NAMES = {b: f"ls11.{KCORRECT_NAMES[b]}" for b in BANDS}
 PCIGALE = str(Path(sys.executable).parent / "pcigale")     # the env's script, PATH not required
 
+#: pcigale modules and parameters; ``sed.cigale.grid`` overrides them per module.
 DEFAULT_GRID = {
     "sfhdelayed": {"tau_main": "250, 500, 1000, 2000, 4000, 8000",
                    "age_main": "500, 1000, 2000, 3000, 5000, 7000, 9000, 11000",
@@ -126,6 +131,10 @@ class CigaleBackend:
                 vals = [x.strip() for x in str(v).split(",")]
                 # configobj writes a list unquoted (a grid); a single value as a scalar
                 conf["sed_modules_params"][mod][k] = vals if len(vals) > 1 else vals[0]
+        # set after genconf (which writes the default 0.1): pcigale would add 10% of the flux in
+        # quadrature to every band and to the errors of extensive properties; the input errors
+        # already carry the common error floor
+        conf["additionalerror"] = 0.0
         ap = conf["analysis_params"]
         ap["variables"] = ["stellar.m_star", "sfh.sfr", LNU_R]
         ap["bands"] = [FILTER_NAMES[b] for b in BANDS]
