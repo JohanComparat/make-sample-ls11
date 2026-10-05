@@ -158,7 +158,8 @@ def figures(res: dict, ref: str, z: np.ndarray, outdir: Path, timing: dict) -> l
     fig, ax = plt.subplots(figsize=(6.4, 0.5 + 0.45 * len(codes)))
     ax.barh(codes, cpuh, color=SERIES[0], height=0.55)
     for y, v in enumerate(cpuh):
-        ax.annotate(f"{v:,.0f} CPU-h", (v, y), xytext=(4, 0), textcoords="offset points", va="center",
+        ax.annotate(f"{v:,.1f} CPU-h" if v < 10 else f"{v:,.0f} CPU-h", (v, y), xytext=(4, 0),
+                    textcoords="offset points", va="center",
                     fontsize=8, color=INK)
     ax.set_xscale("log")
     ax.set_xlabel(f"CPU-hours for {N_FULL / 1e6:.0f}M galaxies (extrapolated)", fontsize=9, color=INK2)
@@ -182,7 +183,8 @@ def report(res, ref, data, sel, timing, zsens, dr10, outdir, figs) -> Path:
              "|---|---|---|---|---|---|"]
     for c, tm in timing.items():
         lines.append(f"| {c} | {tm['init']:.1f} | {tm['fit']:.1f} | {tm['threads']} | "
-                     f"{1e3 * tm['fit'] * tm['threads'] / tm['n']:.2f} | {tm['cpu_h_full']:,.0f} |")
+                     f"{1e3 * tm['fit'] * tm['threads'] / tm['n']:.2f} | "
+                     + (f"{tm['cpu_h_full']:,.1f} |" if tm['cpu_h_full'] < 10 else f"{tm['cpu_h_full']:,.0f} |"))
     lines += ["", "## Agreement with the reference", "",
               "Δ = log M*(code) − log M*(ref); NMAD = 1.4826 median|Δ − median Δ|.", "",
               "| code | failed [%] | median χ² | median Δ | NMAD | median Δ (spec-z) | median Δ, g−r>0.8 | median Δ, g−r<0.6 | median ΔMr |",
@@ -193,7 +195,7 @@ def report(res, ref, data, sel, timing, zsens, dr10, outdir, figs) -> Path:
         lines.append(f"| {c} | {100 * np.mean(~np.isfinite(r['LOGMSTAR'])):.2f} | {np.nanmedian(r['CHI2']):.2f} | "
                      f"{np.nanmedian(d):+.3f} | {nmad(d):.3f} | {np.nanmedian(d[spec]):+.3f} | "
                      f"{np.nanmedian(d[gr > 0.8]):+.3f} | {np.nanmedian(d[gr < 0.6]):+.3f} | "
-                     f"{np.nanmedian(dm):+.3f} |")
+                     + (f"{np.nanmedian(dm):+.3f} |" if np.isfinite(dm).any() else "n/a |"))
     lines += ["", "Median Δ in redshift bins:", "", "| code | " + " | ".join(
         f"{a:.1f}–{b:.1f}" for a, b in zip(np.arange(0, 0.6, 0.1), np.arange(0.1, 0.7, 0.1))) + " |",
               "|---|" + "---|" * 6]
