@@ -1,8 +1,9 @@
 """Volume-limited sample files in the formats read by sys_mapping and sum_stat.
 
 <name>_DATA.fits    RA, DEC (f8), EBV, BEST_Z, BEST_Z_ERR, Z_SOURCE, LS_ID_DR11, MAG_G/R/Z,
-                    ABSMAG_R, KCORR_R, LOGMSTAR, LPH_MASS_BEST (= LOGMSTAR, the column sum_stat
-                    reads), WEIGHT_COMP (= 1; sys_mapping uses it when present)
+                    ABSMAG_R, KCORR_R, ABSMAG_R01, LOGMSTAR (primary code), LOGMSTAR_<CODE>
+                    [_LO, _HI] and LOGSFR_<CODE> for every code run, LPH_MASS_BEST (= LOGMSTAR,
+                    the column sum_stat reads), WEIGHT_COMP (= 1; sys_mapping uses it when present)
 <name>_RAND.fits    RA, DEC (f8), EBV, Z (shuffled data redshifts)
 <name>_COLOUR.fits  G_MAG, Z_MAG (dereddened DECam AB), REDSHIFT (= BEST_Z), row-aligned with
                     DATA (sum_stat colour classes); header PARENT, NMATCH, NMISS
@@ -27,8 +28,13 @@ DATA_COLUMNS = ("RA", "DEC", "EBV", "BEST_Z", "BEST_Z_ERR", "Z_SOURCE", "LS_ID_D
                 "MAG_Z", "ABSMAG_R", "KCORR_R", "LOGMSTAR")
 
 
+PER_CODE = ("LOGMSTAR_", "LOGSFR_")        # LOGMSTAR_<CODE>[_LO|_HI], LOGSFR_<CODE>: every code run
+
+
 def data_table(data: Mapping, sel: np.ndarray) -> dict:
-    out = {c: np.asarray(data[c])[sel] for c in DATA_COLUMNS if c in data}
+    cols = [c for c in DATA_COLUMNS if c in data] + ["ABSMAG_R01"] * ("ABSMAG_R01" in data)
+    cols += [c for c in data if c.startswith(PER_CODE) and c not in cols]
+    out = {c: np.asarray(data[c])[sel] for c in cols}
     out["RA"] = out["RA"].astype(np.float64)
     out["DEC"] = out["DEC"].astype(np.float64)
     if "LOGMSTAR" in out:

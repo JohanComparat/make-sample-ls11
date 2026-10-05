@@ -68,7 +68,17 @@ fixed z and with identical filter curves, photometry and error floor:
 | DSPS | FSPS SSPs and a jax-tabulated delayed-τ × Z × A_V grid |
 
 `benchmarks/sed_benchmark.py` compares the five codes on cost, agreement, photo-z sensitivity
-and the DR10 LePhare masses. The production code is `sed.code` in the config.
+and the DR10 LePhare masses. Results on 10k galaxies of the local strip are in
+`benchmarks/results/local_strip/report.md`:
+- every code agrees with LePhare within ±0.05 dex in the median (NMAD 0.09–0.10 dex);
+- the photo-z error alone moves masses by 0.07–0.11 dex;
+- DR11 LePhare differs from DR10 LePhare by +0.03 dex (NMAD 0.09).
+
+**Production masses.** LePhare, CIGALE and kcorrect all run (`sed.codes`). Every DATA file carries
+`LOGMSTAR_<CODE>[_LO|_HI]` and `LOGSFR_<CODE>` for each code. LePhare (`sed.primary`) defines
+`LOGMSTAR` / `LPH_MASS_BEST` and the M* samples. Running `05_vlim.py --code cigale` builds the M*
+samples from CIGALE instead, in `vlim_cigale/`. On CC, `04_stellar_mass.py --prepare` builds the
+LePhare libraries (2 GB, about 30 min) and registers the CIGALE filters once, before the job arrays.
 
 **Volume-limited samples (step 5).** These are built in Mr (thresholds −18 … −22.5) and in M*
 (9.0 … 11.5). The completeness limits come from the data:

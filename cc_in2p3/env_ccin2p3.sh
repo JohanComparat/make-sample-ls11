@@ -4,7 +4,8 @@ export LS11_REPO=${LS11_REPO:-$HOME/software/make-sample-ls11}
 export LS11_DIR=${LS11_DIR:-/sps/<group>/<user>/legacysurvey/dr11}       # <region>/sweep/11.0, 11.0-photo-z, randoms
 export LS11_REGION=${LS11_REGION:-south}
 export LS11_SWEEP_VER=${LS11_SWEEP_VER:-11.0}
-export LS11_RANDOMS=${LS11_RANDOMS:-randoms-${LS11_REGION}-1-0.fits}    # glob; several files for denser randoms
+# glob: 2 files (5000 deg^-2) give 20 randoms per galaxy for the densest volume-limited samples
+export LS11_RANDOMS=${LS11_RANDOMS:-"randoms-${LS11_REGION}-1-[01].fits"}
 export LS11_OUT=${LS11_OUT:-/sps/<group>/<user>/ls11_samples/${LS11_REGION}}
 export LS11_GAIA_MAPS=${LS11_GAIA_MAPS:-/sps/<group>/<user>/legacysurvey/dr10/systematics}
 export LEPHAREDIR=${LEPHAREDIR:-/sps/<group>/<user>/lephare/data}

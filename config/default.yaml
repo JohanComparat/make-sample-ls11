@@ -66,8 +66,9 @@ kcorr:                    # step 3, kcorrect v5 at fixed z = BEST_Z
   nz: 500
   complete_set_zmax: 0.1    # SED set used for the K_95(z) completeness curve (vlim.mr_limit_curve)
 
-sed:                      # step 4: production stellar-mass code (chosen with benchmarks/)
-  code: kcorrect            # kcorrect | lephare | cigale | eazy | dsps
+sed:                      # step 4: production stellar masses (benchmarks/results/local_strip)
+  codes: [lephare, cigale, kcorrect]   # all run; any of kcorrect | lephare | cigale | eazy | dsps
+  primary: lephare          # LOGMSTAR / LPH_MASS_BEST and the M* volume limits (DR10 continuity)
 
 randoms:
   density_per_file: 2500    # deg^-2, checked against the DENSITY header keyword
