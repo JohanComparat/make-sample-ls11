@@ -115,7 +115,7 @@ def define_samples(data: Mapping, cfg: dict, r_lim: float, mr_curve=None) -> tup
     z = np.asarray(data["BEST_Z"], np.float64)
     out = []
     curves = {}
-    if "ABSMAG_R" in data and ("KCORR_R" in data or mr_curve is not None):
+    if "MABS_R" in data and ("KCORR_R" in data or mr_curve is not None):
         c = vc["absmag_r"]
         zc, ml = mr_curve if mr_curve is not None else mr_limit_curve(z, data["KCORR_R"], r_lim, cfg, pct)
         curves["Mr"] = (zc, ml)
@@ -123,7 +123,7 @@ def define_samples(data: Mapping, cfg: dict, r_lim: float, mr_curve=None) -> tup
             z1 = _floor3(min(zmax_brighter(zc, ml, thr), c["z_cap"]))
             if not np.isfinite(z1) or z1 <= c["z_min"]:
                 continue
-            m = np.asarray(data["ABSMAG_R"])
+            m = np.asarray(data["MABS_R"])
             sel = (m <= thr) & (m > c["bright"]) & (z > c["z_min"]) & (z <= z1)
             out.append({"kind": "Mr", "lo": c["bright"], "hi": thr, "z0": c["z_min"], "z1": z1, "sel": sel})
     if "LOGMSTAR" in data:
@@ -159,7 +159,7 @@ def summary_row(s: dict, data: Mapping, area: float, cfg: dict) -> dict:
     row = {"NAME": s["name"], "KIND": s["kind"], "LO": s["lo"], "HI": s["hi"], "Z_MIN": s["z0"],
            "Z_MAX": s["z1"], "N_GAL": s["n"], "VOLUME": vol, "N_DENS": s["n"] / vol if vol else np.nan,
            "N_DEG2": s["n"] / area, "Z_MEDIAN": float(np.median(z)) if z.size else np.nan}
-    for col in ("ABSMAG_R", "LOGMSTAR"):
+    for col in ("MABS_R", "LOGMSTAR"):
         if col in data:
             v = np.asarray(data[col])[sel]
             row[f"{col}_MEDIAN"] = float(np.nanmedian(v)) if v.size else np.nan

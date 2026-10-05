@@ -1,37 +1,63 @@
 #!/usr/bin/env python
-"""Step 4: stellar masses at fixed z = BEST_Z for every code of ``sed.codes``
-($LS11_OUT/mstar/<code>/MS-<sweep>.fits).
+"""Step 4: stellar masses and rest-frame r absolute magnitudes, with uncertainties, at fixed
+z = BEST_Z, for every code of ``sed.codes``:
 
---prepare only builds what the codes need once (LePhare libraries, CIGALE filters): run it before
-the job arrays so that parallel tasks never build the same files at the same time.
+    <sweep root>/<ver>-<code>/<sweep>-<code>.fits
+    SWEEP_ROW (i4), LOGMSTAR, LOGMSTAR_ERR, MABS_R, MABS_R_ERR (f4)
+
+row-aligned with the selection file <ver>-<tag>/<sweep>-<tag>.fits; the photometry is read from the
+sweep at SWEEP_ROW. --prepare only builds what the codes need once (LePhare libraries, CIGALE
+filters): run it before the job arrays so that parallel tasks never build the same files.
 """
 
 import logging
 import time
-from functools import partial
+import zlib
 from pathlib import Path
 
 import numpy as np
 
-from ls11samples import bgsl, cli, io
-from ls11samples.sed import get_backend
+from ls11samples import catalog, cli, io
+from ls11samples.config import config_hash
+from ls11samples.cosmo import cosmology
+from ls11samples.sed import PRODUCT, get_backend
 from ls11samples.sed.common import BANDS
 
 log = logging.getLogger("ls11samples.step4")
-INPUT = ["LS_ID_DR11", "BEST_Z"] + [f"{p}_{b}" for p in ("FLUX", "FLUX_IVAR", "MW_TRANSMISSION") for b in BANDS]
+PHOT = [f"{p}_{b}" for p in ("FLUX", "FLUX_IVAR", "MW_TRANSMISSION") for b in BANDS]
 
 
-def run_sweep(parent: Path, backend, code: str, outdir: Path, overwrite: bool, chunk: int) -> Path:
-    out = outdir / ("MS-" + parent.name.removeprefix("BGSl-"))
-    if out.exists() and not overwrite:
+def up_to_date(out: Path, selhash: str, overwrite: bool) -> bool:
+    if not out.exists() or overwrite:
+        return False
+    if io.read_header(out, 1).get("SELHASH") != selhash:
+        raise RuntimeError(f"{out} belongs to another selection; use --overwrite to replace it")
+    return True
+
+
+def run_sweep(sweep: Path, backend, code: str, cfg: dict, paths, overwrite: bool, chunk: int) -> Path:
+    tag = cfg["tag"]
+    sel_file = paths.product(sweep, tag)
+    selhash = io.read_header(sel_file, 1)["CFGHASH"]
+    out = paths.product(sweep, code)
+    if up_to_date(out, selhash, overwrite):
         return out
     t0 = time.time()
-    t = bgsl.read_selected([parent], INPUT) or {c: np.zeros(0) for c in INPUT}
+    sel = io.read_table(sel_file, ["SWEEP_ROW", "BEST_Z"])
+    t = {**sel, **catalog.sweep_rows(sweep, sel["SWEEP_ROW"], PHOT)}
+    if hasattr(backend, "seed"):
+        backend.seed = zlib.crc32(sweep.name.encode())             # reproducible Monte Carlo errors
     n = len(t["BEST_Z"])
     parts = [backend.fit(io.take(t, slice(i, i + chunk))) for i in range(0, n, chunk)] if n else [backend.fit(t)]
-    io.write_table(out, {"LS_ID_DR11": t["LS_ID_DR11"], **io.concat(parts)}, header={"SEDCODE": code},
-                   extname="MSTAR")
-    log.info("%s %s: %d galaxies (%.0fs)", code, out.name, n, time.time() - t0)
+    res = io.concat(parts) or {k: np.zeros(0) for k in PRODUCT}
+    cos = cosmology(cfg)
+    header = {"CODE": code, "TAG": tag, "SELHASH": selhash, "CFGHASH": config_hash(cfg),
+              "MABSBAND": "rest-frame DECam r (z0=0), AB", "MASSIMF": "Chabrier",
+              "ERRDEF": "1 sigma at fixed z (no photo-z term)",
+              "COSMO": f"FlatLCDM H0={cos.H0.value} Om0={cos.Om0}"}
+    io.write_table(out, {"SWEEP_ROW": sel["SWEEP_ROW"], **{k: np.asarray(res[k], np.float32) for k in PRODUCT}},
+                   header=header, extname=code.upper())
+    log.info("%s %s: %d objects (%.0fs)", code, out.name, n, time.time() - t0)
     return out
 
 
@@ -44,17 +70,16 @@ def main():
     args = p.parse_args()
     cfg, paths, _ = cli.setup(args)
     codes = args.code.split(",") if args.code else list(cfg["sed"]["codes"])
-    files = [paths.bgsl_dir / bgsl.output_name(s) for s in cli.my_part(paths.sweeps(), args.part, args.nparts)]
-    files = [f for f in files if f.exists()]
+    sweeps = [s for s in cli.my_part(paths.sweeps(), args.part, args.nparts)
+              if paths.product(s, cfg["tag"]).exists()]
     for code in codes:
         backend = get_backend(code)(cfg)          # builds / checks libraries once per process
         if args.prepare:
             log.info("%s ready", code)
             continue
-        run = partial(run_sweep, backend=backend, code=code, outdir=paths.outdir("mstar", code),
-                      overwrite=args.overwrite, chunk=args.chunk)
-        # the codes parallelise internally (OpenMP, pcigale cores, jax): one sweep at a time
-        list(map(run, files))
+        paths.product_dir(code).mkdir(parents=True, exist_ok=True)
+        for s in sweeps:                          # the codes parallelise internally
+            run_sweep(s, backend, code, cfg, paths, args.overwrite, args.chunk)
 
 
 if __name__ == "__main__":

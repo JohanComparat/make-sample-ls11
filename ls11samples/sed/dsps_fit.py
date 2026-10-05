@@ -140,10 +140,11 @@ class DspsBackend:
                 w = np.where(valid, np.exp(-0.5 * (chi2 - chi2min[:, None])), 0.0)
             pct = _weighted_percentiles(np.where(valid, logm, 0.0), w, (16, 50, 84))
             out["LOGMSTAR_LO"][idx], out["LOGMSTAR"][idx], out["LOGMSTAR_HI"][idx] = pct
+            out["LOGMSTAR_ERR"][idx] = 0.5 * (pct[2] - pct[0])
             out["CHI2"][idx] = chi2min
             ab = amp[np.arange(len(idx)), best]
             with np.errstate(divide="ignore", invalid="ignore"):
-                out["ABSMAG_R"][idx] = self.rest_r[best] - 2.5 * np.log10(ab)
+                out["MABS_R"][idx] = self.rest_r[best] - 2.5 * np.log10(ab)
                 out["LOGSFR"][idx] = np.log10(ab * self.sfr_now[best]) + KROUPA_TO_CHABRIER
         return out
 

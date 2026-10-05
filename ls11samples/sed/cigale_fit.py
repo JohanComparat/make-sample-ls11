@@ -5,13 +5,18 @@ to register the shared DECam/WISE filters, named ``ls11.<kcorrect name>``, in it
 
 Model grid (``sed.cigale`` in the configuration, defaults below): delayed-tau SFH, BC03 Chabrier,
 nebular emission, Calzetti-like modified starburst attenuation; redshifts rounded to
-``redshift_decimals`` so the models are computed once per redshift step.
+``redshift_decimals`` so the models are computed once per redshift step. The rest-frame DECam r
+luminosity (``restframe_parameters``, L_nu at 10 pc) gives MABS_R and its Bayesian error.
+
+Each fit runs in a temporary directory under $TMPDIR (node-local on the cluster), removed after
+the results are read, so nothing accumulates on disk.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -38,8 +43,12 @@ DEFAULT_GRID = {
     "dustatt_modified_starburst": {"E_BV_lines": "0.0, 0.05, 0.1, 0.2, 0.3, 0.5, 0.8",
                                    "E_BV_factor": "0.44", "uv_bump_amplitude": "0.0",
                                    "powerlaw_slope": "0.0"},
+    "restframe_parameters": {"beta_calz94": "False", "Dn4000": "False", "IRX": "False", "EW": "",
+                             "luminosity_filters": "ls11.decam_r", "colours_filters": ""},
     "redshifting": {"redshift": ""},
 }
+LNU_R = "param.restframe_Lnu(ls11.decam_r)"
+TO_LUMIN = 1e-29 * 4.0 * np.pi * (3.0856775814913673e17) ** 2     # mJy at 10 pc -> W/Hz (as pcigale)
 
 
 def _run(args, cwd=None):
@@ -74,16 +83,16 @@ def ensure_filters() -> None:
 class CigaleBackend:
     name = "cigale"
 
-    def __init__(self, cfg: dict, workdir: str | Path | None = None, cores: int | None = None):
+    def __init__(self, cfg: dict, workdir: str | Path | None = None, cores: int | None = None,
+                 keep_runs: bool = False):
         self.cfg = cfg
         c = (cfg.get("sed") or {}).get("cigale") or {}
         self.grid = {m: {**p, **(c.get("grid", {}).get(m, {}))} for m, p in DEFAULT_GRID.items()}
         self.decimals = int(c.get("redshift_decimals", 2))
         self.cores = cores or nproc()
+        self.keep_runs = keep_runs
         if workdir is None:
-            from ..env import get_paths
-
-            workdir = get_paths().out / "sedwork" / "cigale"
+            workdir = Path(os.environ.get("TMPDIR", tempfile.gettempdir())) / "ls11_cigale"
         self.workroot = Path(workdir)
         self.workroot.mkdir(parents=True, exist_ok=True)
         ensure_filters()
@@ -118,7 +127,7 @@ class CigaleBackend:
                 # configobj writes a list unquoted (a grid); a single value as a scalar
                 conf["sed_modules_params"][mod][k] = vals if len(vals) > 1 else vals[0]
         ap = conf["analysis_params"]
-        ap["variables"] = ["stellar.m_star", "sfh.sfr"]
+        ap["variables"] = ["stellar.m_star", "sfh.sfr", LNU_R]
         ap["bands"] = [FILTER_NAMES[b] for b in BANDS]
         ap["save_best_sed"] = False
         ap["redshift_decimals"] = self.decimals
@@ -142,11 +151,20 @@ class CigaleBackend:
         idx = np.flatnonzero(ok)[np.asarray(res["id"]).astype(int)]
         m = np.asarray(res["bayes.stellar.m_star"], np.float64)
         me = np.asarray(res["bayes.stellar.m_star_err"], np.float64)
+        lnu = np.asarray(res[f"bayes.{LNU_R}"], np.float64)
+        lnu_err = np.asarray(res[f"bayes.{LNU_R}_err"], np.float64)
         with np.errstate(divide="ignore", invalid="ignore"):
             out["LOGMSTAR"][idx] = np.log10(m)
+            out["LOGMSTAR_ERR"][idx] = me / (m * np.log(10))
             out["LOGMSTAR_LO"][idx] = np.log10(np.clip(m - me, 1e-3, None))
             out["LOGMSTAR_HI"][idx] = np.log10(m + me)
             out["LOGSFR"][idx] = np.log10(np.asarray(res["bayes.sfh.sfr"], np.float64))
+            # AB absolute magnitude: flux density at 10 pc in mJy vs 3631 Jy
+            out["MABS_R"][idx] = -2.5 * np.log10(lnu / TO_LUMIN / 3.631e6)
+            out["MABS_R_ERR"][idx] = 2.5 / np.log(10) * lnu_err / lnu
         out["CHI2"][idx] = np.asarray(res["best.chi_square"], np.float64)
-        self.last_run = run
+        if self.keep_runs:
+            self.last_run = run
+        else:
+            shutil.rmtree(run, ignore_errors=True)
         return out

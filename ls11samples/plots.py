@@ -29,7 +29,7 @@ def vlim_planes(data: Mapping, samples: list[dict], curves: Mapping, path: Path,
     from matplotlib.patches import Rectangle
 
     z = np.asarray(data["BEST_Z"], float)
-    panels = [("Mr", "ABSMAG_R", "M$_r$ (rest-frame DECam r)", (-24.5, -16), True),
+    panels = [("Mr", "MABS_R", "M$_r$ (rest-frame DECam r)", (-24.5, -16), True),
               ("Mstar", "LOGMSTAR", f"log M* / M$_\\odot$ ({primary})", (8.5, 12.2), False)]
     fig, axes = plt.subplots(1, 2, figsize=(10, 4))
     for ax, (kind, col, label, ylim, invert) in zip(axes, panels):

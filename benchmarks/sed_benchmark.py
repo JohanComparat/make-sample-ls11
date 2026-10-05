@@ -4,7 +4,7 @@
 All codes see the same galaxies, photometry (dereddened grizW1W2 + error floor), filter curves and
 redshift (BEST_Z). Outputs in $LS11_OUT/benchmark/ (or --out):
 
-  <code>.fits                  per-galaxy results (LOGMSTAR, LO, HI, LOGSFR, ABSMAG_R, CHI2) + timing
+  <code>.fits                  per-galaxy results (LOGMSTAR, LO, HI, LOGSFR, MABS_R, CHI2) + timing
   <code>_zlo.fits, _zhi.fits   refits of a photo-z subset at BEST_Z -/+ BEST_Z_ERR
   report.md, *.png             metrics and figures
 
@@ -21,15 +21,14 @@ from pathlib import Path
 
 import numpy as np
 
-from ls11samples import io
+from ls11samples import catalog, io
 from ls11samples.config import load_config
 from ls11samples.env import get_paths, nproc
 from ls11samples.sed import OUTPUT, get_backend
 from ls11samples.sed.common import BANDS
 
 log = logging.getLogger("benchmark")
-COLS = ["LS_ID_DR11", "RA", "DEC", "BEST_Z", "BEST_Z_ERR", "Z_SOURCE", "MAG_G", "MAG_R", "MAG_Z"] + [
-    f"{p}_{b}" for p in ("FLUX", "FLUX_IVAR", "MW_TRANSMISSION") for b in BANDS]
+PHOT = ["RA", "DEC"] + [f"{p}_{b}" for p in ("FLUX", "FLUX_IVAR", "MW_TRANSMISSION") for b in BANDS]
 N_FULL = 20e6       # ~770 deg^-2 x ~26 000 deg^2 (DR11 south footprint, before masking)
 
 
@@ -59,7 +58,8 @@ def run_code(code, cfg, t, outdir, overwrite, tag=""):
     threads = {"kcorrect": 1, "lephare": int(os.environ.get("OMP_NUM_THREADS", os.cpu_count())),
                "dsps": os.cpu_count()}.get(code, nproc())      # threads the code used (upper bound)
     hdr = {"CODE": code, "NGAL": len(t["BEST_Z"]), "T_INIT": t1 - t0, "T_FIT": t2 - t1, "THREADS": threads}
-    io.write_table(path, {"LS_ID_DR11": t["LS_ID_DR11"], **res}, header=hdr, extname="RESULTS")
+    io.write_table(path, {"LS_ID_DR11": t["LS_ID_DR11"], **{k: np.asarray(v, np.float32) for k, v in res.items()}},
+                   header=hdr, extname="RESULTS")
     log.info("%s%s: init %.1fs, fit %.1fs for %d galaxies", code, tag, t1 - t0, t2 - t1, len(t["BEST_Z"]))
     return res, hdr
 
@@ -87,7 +87,7 @@ def match_dr10(data: dict, path: Path, radius_arcsec: float = 1.0) -> dict | Non
     z10 = np.where(dr10["Z_PHOT_MEAN_I"] > -9, dr10["Z_PHOT_MEAN_I"], dr10["Z_PHOT_MEAN"])
     z10 = np.where(dr10["Z_SPEC"] > -9, dr10["Z_SPEC"], z10)
     out = {"MATCH": ok, "LOGMSTAR": np.where(ok, dr10["LPH_MASS_BEST"][j], np.nan),
-           "ABSMAG_R": np.where(ok, dr10["LPH_MAG_ABS1"][j], np.nan), "BEST_Z": np.where(ok, z10[j], np.nan)}
+           "MABS_R": np.where(ok, dr10["LPH_MAG_ABS1"][j], np.nan), "BEST_Z": np.where(ok, z10[j], np.nan)}
     out["LOGMSTAR"] = np.where(out["LOGMSTAR"] > 0, out["LOGMSTAR"], np.nan)
     return out
 
@@ -191,7 +191,7 @@ def report(res, ref, data, sel, timing, zsens, dr10, outdir, figs) -> Path:
               "|---|---|---|---|---|---|---|---|---|"]
     for c, r in res.items():
         d = r["LOGMSTAR"] - res[ref]["LOGMSTAR"]
-        dm = r["ABSMAG_R"] - res[ref]["ABSMAG_R"]
+        dm = r["MABS_R"] - res[ref]["MABS_R"]
         lines.append(f"| {c} | {100 * np.mean(~np.isfinite(r['LOGMSTAR'])):.2f} | {np.nanmedian(r['CHI2']):.2f} | "
                      f"{np.nanmedian(d):+.3f} | {nmad(d):.3f} | {np.nanmedian(d[spec]):+.3f} | "
                      f"{np.nanmedian(d[gr > 0.8]):+.3f} | {np.nanmedian(d[gr < 0.6]):+.3f} | "
@@ -237,9 +237,10 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s: %(message)s")
     cfg = load_config()
     paths = get_paths()
-    outdir = Path(args.out) if args.out else paths.outdir("benchmark")
+    outdir = Path(args.out) if args.out else paths.run_dir(cfg["tag"], "benchmark")
     outdir.mkdir(parents=True, exist_ok=True)
-    data = io.read_table(paths.data_file, COLS)
+    data = catalog.load(paths, paths.sweeps(), cfg["tag"], sweep_columns=PHOT, mag_bands=["G", "R", "Z"])
+    data = io.take(data, (np.asarray(data["STAR_FLAG"]).astype(int) & 2) == 0)
     rng = np.random.default_rng(args.seed)
     sel = select_sample(data, args.n, rng)
     t = io.take(data, sel)

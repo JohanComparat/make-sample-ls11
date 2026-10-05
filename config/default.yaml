@@ -2,6 +2,8 @@
 # Bits are given by NAME; their numbers are checked against the sweep headers (MBIT_n / FBIT_n),
 # so a change of the DR11 bit layout fails loudly instead of silently masking the wrong thing.
 
+tag: bgsl                 # selection name: per-sweep files go to <sweep root>/<ver>-<tag>/
+
 cosmology:                # flat LCDM, as for the DR10 BGS-like samples
   H0: 67.74
   Om0: 0.3089
@@ -64,6 +66,7 @@ kcorr:                    # step 3, kcorrect v5 at fixed z = BEST_Z
   band_shift: 0.0           # ABSMAG_<b> in rest-frame DECam bands (ABSMAG_R01: SDSS ^{0.1}r)
   z_range: [0.0, 1.0]
   nz: 500
+  mc: 20                    # Monte Carlo flux realisations for the kcorrect errors (0: none)
   complete_set_zmax: 0.1    # SED set used for the K_95(z) completeness curve (vlim.mr_limit_curve)
 
 sed:                      # step 4: production stellar masses (benchmarks/results/local_strip)
@@ -84,6 +87,8 @@ maps:
 
 vlim:
   n_rand_factor: 20         # randoms per galaxy (capped by the randoms available)
+  mr_code: kcorrect         # code giving MABS_R for the Mr samples (and the K_95 completeness curve)
+  exclude_star_flag: 2      # leave out objects with STAR_FLAG & this (2: Gaia star test, 3: + PSF)
   completeness_percentile: 95
   mstar:
     thresholds: [9.0, 9.5, 10.0, 10.25, 10.5, 10.75, 11.0, 11.25, 11.5]

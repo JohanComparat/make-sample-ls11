@@ -1,32 +1,29 @@
-"""Step 3: K-corrections and absolute magnitudes with kcorrect v5 (Blanton & Roweis 2007).
+"""kcorrect v5 (Blanton & Roweis 2007) for the LS DR11 bands at fixed z = BEST_Z.
 
-The fit uses the dereddened grizW1W2 fluxes (with an error floor) at fixed z = BEST_Z. Outputs per
-galaxy:
+:meth:`KcorrectV5.fit` returns per galaxy (NaN when not fitted):
 
   KCORR_<b>, ABSMAG_<b>   b = G, R, Z (DECam), K-corrected to the band shifted to ``band_shift``
                           (default 0: rest-frame DECam bands); ABSMAG = MAG - DM(z) - KCORR
-  KCORR_R01, ABSMAG_R01   SDSS r shifted to z = 0.1 (^{0.1}r, as in Zehavi et al. 2011), from DECam r
+  KCORR_R01, ABSMAG_R01   SDSS r shifted to z = 0.1 (^{0.1}r), from DECam r
   KC_LOGMSTAR             log10 surviving stellar mass of the template fit (Msun, Chabrier)
+  ABSMAG_R_ERR, KC_LOGMSTAR_ERR   standard deviations over ``mc`` Monte Carlo realisations of the
+                          fluxes (kcorrect ``fit_coeffs(mc=...)``), 0 realisations -> NaN
   KC_CHI2, KC_COEFFS      fit chi^2 and template coefficients
 
-:func:`k_percentile_curve` evaluates the r-band K-correction of a complete low-z set of fitted
-SEDs at every z, so the Mr completeness limit does not inherit the bias of the K distribution of the
-observed (flux-limited) galaxies at high z.
+:meth:`KcorrectV5.k_curve` evaluates the r-band K-correction of a set of fitted SEDs at every z
+(completeness limit of the Mr samples, :mod:`ls11samples.vlim`).
 """
 
 from __future__ import annotations
 
 import logging
-import time
 import warnings
 from collections.abc import Mapping
-from pathlib import Path
 
 import numpy as np
 
-from . import io
 from .cosmo import cosmology, distmod
-from .photometry import flux_arrays
+from .photometry import flux_arrays, mag
 
 log = logging.getLogger(__name__)
 
@@ -38,13 +35,15 @@ OUT_BANDS = ("G", "R", "Z")
 class KcorrectV5:
     """kcorrect v5 fitter for the LS DR11 bands."""
 
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, mc: int | None = None):
         import kcorrect.kcorrect as kk
 
         kc = cfg["kcorr"]
         self.cfg = cfg
         self.bands = list(kc["bands_in"])
         self.band_shift = float(kc.get("band_shift", 0.0))
+        self.mc = int(kc.get("mc", 20) if mc is None else mc)
+        self.seed = 0
         out = [RESPONSES[b] for b in OUT_BANDS] + ["sdss_r0"]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -52,6 +51,7 @@ class KcorrectV5:
                                   responses_map=[RESPONSES[b] for b in OUT_BANDS] + ["decam_r"],
                                   redshift_range=list(kc.get("z_range", [0.0, 1.0])),
                                   nredshift=int(kc.get("nz", 500)), cosmo=cosmology(cfg))
+        self.ntemplates = len(self.kc.templates.mremain)
 
     def maggies(self, t: Mapping) -> tuple[np.ndarray, np.ndarray]:
         f, e = flux_arrays(t, self.bands, self.cfg["photometry"]["err_floor_mag"])
@@ -62,38 +62,53 @@ class KcorrectV5:
     def fit(self, t: Mapping) -> dict[str, np.ndarray]:
         z = np.asarray(t["BEST_Z"], np.float64)
         n = z.size
-        ok = np.isfinite(z) & (z > 0) & (z < self.kc.redshift_range[1])
-        out = {"KC_COEFFS": np.zeros((n, len(self.kc.templates.mremain)), np.float32)}
+        ok = np.isfinite(z) & (z > 0.001) & (z < self.kc.redshift_range[1])
+        out = {"KC_COEFFS": np.zeros((n, self.ntemplates), np.float32)}
         for b in OUT_BANDS:
             out[f"KCORR_{b}"] = np.full(n, np.nan, np.float32)
             out[f"ABSMAG_{b}"] = np.full(n, np.nan, np.float32)
-        out.update({k: np.full(n, np.nan, np.float32)
-                    for k in ("KCORR_R01", "ABSMAG_R01", "KC_LOGMSTAR", "KC_CHI2")})
+        out.update({k: np.full(n, np.nan, np.float32) for k in
+                    ("KCORR_R01", "ABSMAG_R01", "KC_LOGMSTAR", "KC_CHI2", "ABSMAG_R_ERR", "KC_LOGMSTAR_ERR")})
         if not ok.any():
             return out
         maggies, ivar = self.maggies(t)
         zz = z[ok].astype(np.float32)
+        mags = {b: mag(t[f"FLUX_{b}"], t[f"MW_TRANSMISSION_{b}"])[ok] for b in OUT_BANDS}
+        dm = distmod(zz, self.cfg)
+        dfac = 10.0 ** (0.4 * dm)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            coeffs = self.kc.fit_coeffs(redshift=zz, maggies=maggies[ok], ivar=ivar[ok])
+            np.random.seed(self.seed)                      # kcorrect draws its MC fluxes with np.random
+            res = self.kc.fit_coeffs(redshift=zz, maggies=maggies[ok], ivar=ivar[ok], mc=self.mc)
+            coeffs, coeffs_mc, maggies_mc = res if self.mc > 0 else (res, None, None)
             k = self.kc.kcorrect(redshift=zz, coeffs=coeffs, band_shift=self.band_shift)
             k01 = self.kc.kcorrect(redshift=zz, coeffs=coeffs, band_shift=0.1)
             rec = self.kc.reconstruct(redshift=zz, coeffs=coeffs)
-        dm = distmod(zz, self.cfg)
+            if self.mc > 0:
+                ir = self.bands.index("R")
+                mr_mc = np.empty((zz.size, self.mc))
+                lm_mc = np.empty((zz.size, self.mc))
+                for i in range(self.mc):
+                    k_i = self.kc.kcorrect(redshift=zz, coeffs=coeffs_mc[..., i], band_shift=self.band_shift)
+                    with np.errstate(divide="ignore", invalid="ignore"):
+                        m_i = np.where(maggies_mc[:, ir, i] > 0, -2.5 * np.log10(maggies_mc[:, ir, i]), np.nan)
+                        mr_mc[:, i] = m_i - dm - k_i[:, 1]
+                        lm_mc[:, i] = np.log10(coeffs_mc[..., i].dot(self.kc.templates.mremain) * dfac)
+                out["ABSMAG_R_ERR"][ok] = np.nanstd(mr_mc, axis=1)
+                out["KC_LOGMSTAR_ERR"][ok] = np.nanstd(np.where(np.isfinite(lm_mc), lm_mc, np.nan), axis=1)
         out["KC_COEFFS"][ok] = coeffs
         for i, b in enumerate(OUT_BANDS):
             out[f"KCORR_{b}"][ok] = k[:, i]
-            out[f"ABSMAG_{b}"][ok] = np.asarray(t[f"MAG_{b}"])[ok] - dm - k[:, i]
+            out[f"ABSMAG_{b}"][ok] = mags[b] - dm - k[:, i]
         out["KCORR_R01"][ok] = k01[:, 3]
-        out["ABSMAG_R01"][ok] = np.asarray(t["MAG_R"])[ok] - dm - k01[:, 3]
-        mremain = coeffs.dot(self.kc.templates.mremain) * 10.0 ** (0.4 * dm)
+        out["ABSMAG_R01"][ok] = mags["R"] - dm - k01[:, 3]
+        mremain = coeffs.dot(self.kc.templates.mremain) * dfac
         with np.errstate(divide="ignore", invalid="ignore"):
             out["KC_LOGMSTAR"][ok] = np.where(mremain > 0, np.log10(mremain), np.nan)
         out["KC_CHI2"][ok] = np.sum((rec - maggies[ok]) ** 2 * ivar[ok], axis=1)
         return out
 
-    def k_curve(self, coeffs: np.ndarray, zgrid: np.ndarray, pct: float = 95, band: int = 1
-                ) -> np.ndarray:
+    def k_curve(self, coeffs: np.ndarray, zgrid: np.ndarray, pct: float = 95, band: int = 1) -> np.ndarray:
         """p-th percentile over the SED set ``coeffs`` of the K-correction (output band ``band``,
         default DECam r) at each z of ``zgrid``."""
         coeffs = np.asarray(coeffs, np.float32)
@@ -107,45 +122,17 @@ class KcorrectV5:
         return out
 
 
-def complete_sed_set(kc_out: Mapping, z: np.ndarray, r_lim: float, cfg: dict, z_max: float = 0.1,
-                     n_max: int = 20000, seed: int = 0) -> np.ndarray:
-    """Coefficients of galaxies forming a complete set of SEDs: z <= z_max and Mr brighter than
-    the reddest-galaxy limit at z_max, so no SED type is lost to the flux limit."""
-    z = np.asarray(z, np.float64)
-    kmax = np.nanpercentile(np.asarray(kc_out["KCORR_R"])[z <= z_max], 99)
+def complete_set_rows(z: np.ndarray, mabs_r: np.ndarray, mag_r: np.ndarray, r_lim: float, cfg: dict,
+                      z_max: float = 0.1, n_max: int = 20000, seed: int = 0) -> np.ndarray:
+    """Indices of galaxies forming a complete set of SEDs: z <= z_max and Mr brighter than the
+    limit of the reddest galaxies at z_max (99th percentile of the K-correction there)."""
+    z, mabs_r, mag_r = (np.asarray(a, np.float64) for a in (z, mabs_r, mag_r))
+    low = (z > 0.01) & (z <= z_max) & np.isfinite(mabs_r)
+    kcorr = mag_r - distmod(z, cfg) - mabs_r
+    kmax = np.nanpercentile(kcorr[low], 99)
     mlim = r_lim - distmod(np.array([z_max]), cfg)[0] - kmax
-    sel = (z > 0.01) & (z <= z_max) & (np.asarray(kc_out["ABSMAG_R"]) <= mlim)
-    sel &= np.asarray(kc_out["KC_COEFFS"]).sum(axis=1) > 0
-    idx = np.flatnonzero(sel)
+    idx = np.flatnonzero(low & (mabs_r <= mlim))
     if idx.size > n_max:
-        idx = np.random.default_rng(seed).choice(idx, n_max, replace=False)
+        idx = np.sort(np.random.default_rng(seed).choice(idx, n_max, replace=False))
     log.info("complete SED set: %d galaxies with z <= %.2f and Mr <= %.2f", idx.size, z_max, mlim)
-    return np.asarray(kc_out["KC_COEFFS"])[idx]
-
-
-KC_INPUT = ["LS_ID_DR11", "BEST_Z", "MAG_G", "MAG_R", "MAG_Z"] + [
-    f"{p}_{b}" for p in ("FLUX", "FLUX_IVAR", "MW_TRANSMISSION") for b in RESPONSES]
-
-
-def output_name(sweep: str | Path) -> str:
-    return "KC-" + Path(sweep).name
-
-
-def run_sweep(parent_file: str | Path, cfg: dict, outdir: str | Path, overwrite: bool = False) -> Path:
-    """K-corrections of the BGS-like galaxies (SEL_FLAGS == 0) of one per-sweep parent file."""
-    from .bgsl import read_selected
-
-    parent_file = Path(parent_file)
-    out = Path(outdir) / output_name(parent_file.name.removeprefix("BGSl-"))
-    if out.exists() and not overwrite:
-        return out
-    t0 = time.time()
-    t = read_selected([parent_file], KC_INPUT)
-    if not t:
-        t = {c: np.zeros(0) for c in KC_INPUT}
-    res = KcorrectV5(cfg).fit(t)
-    io.write_table(out, {"LS_ID_DR11": t["LS_ID_DR11"], **res},
-                   header={"KCCODE": "kcorrect", "BANDSHFT": float(cfg["kcorr"].get("band_shift", 0.0)),
-                           "BANDS": ",".join(cfg["kcorr"]["bands_in"])}, extname="KCORR")
-    log.info("%s: %d galaxies (%.0fs)", out.name, len(t["LS_ID_DR11"]), time.time() - t0)
-    return out
+    return idx

@@ -85,16 +85,18 @@ class LephareBackend:
             v = np.asarray(res[name], np.float64)
             return np.where((v > -99) & np.isfinite(v), v, np.nan)
 
-        out["LOGMSTAR"][idx] = col("MASS_MED")
-        out["LOGMSTAR_LO"][idx] = col("MASS_INF")
-        out["LOGMSTAR_HI"][idx] = col("MASS_SUP")
-        best = col("MASS_BEST")
-        fill = ~np.isfinite(out["LOGMSTAR"][idx])
-        out["LOGMSTAR"][idx[fill]] = best[fill]
+        med, lo, hi, best = col("MASS_MED"), col("MASS_INF"), col("MASS_SUP"), col("MASS_BEST")
+        out["LOGMSTAR"][idx] = np.where(np.isfinite(med), med, best)
+        out["LOGMSTAR_LO"][idx] = lo
+        out["LOGMSTAR_HI"][idx] = hi
+        out["LOGMSTAR_ERR"][idx] = 0.5 * (hi - lo)              # half the 68% interval of the PDF
         out["LOGSFR"][idx] = col("SFR_MED")
-        mabs = np.asarray(res["MAG_ABS()"], np.float64)            # (n, nfilter), filter order = BANDS
-        r = mabs[:, BANDS.index("R")]
-        out["ABSMAG_R"][idx] = np.where((r > -90) & (r < 0), r, np.nan)
+        ir = BANDS.index("R")
+        mabs = np.asarray(res["MAG_ABS()"], np.float64)[:, ir]  # (n, nfilter), filter order = BANDS
+        emabs = np.asarray(res["EMAG_ABS()"], np.float64)[:, ir]
+        good = (mabs > -90) & (mabs < 0)
+        out["MABS_R"][idx] = np.where(good, mabs, np.nan)
+        out["MABS_R_ERR"][idx] = np.where(good & (emabs >= 0) & (emabs < 9), emabs, np.nan)
         out["CHI2"][idx] = col("CHI_BEST")
         self.last = res
         return out

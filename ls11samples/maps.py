@@ -63,30 +63,66 @@ def quantity_values(rand: Mapping, q: str, depth_as_mag: bool) -> np.ndarray:
     return v
 
 
-def make_maps(rand: Mapping, cfg: dict, out: Path, density: float, gaia_dir: Path | None = None
-              ) -> list[Path]:
-    mc = cfg["maps"]
-    written = []
-    for nside in mc["nsides"]:
-        pix = pixel_index(rand["RA"], rand["DEC"], nside)
-        written.append(write_map(out / "footprint" / f"LS11_FRACAREA_NSIDE_{nside:04d}.fits",
-                                 fracarea_map(pix, nside, density), "FRACAREA",
-                                 {"DENSITY": density}))
-        sdir = out / "systematics" / f"{nside:04d}"
-        for q in mc["quantities"]:
-            if q not in rand:
-                log.warning("randoms have no %s; map skipped", q)
-                continue
-            m = mean_map(pix, quantity_values(rand, q, mc.get("depth_as_mag", True)), nside)
-            unit = "AB mag, 5 sigma" if (mc.get("depth_as_mag", True) and "DEPTH" in q) else ""
-            written.append(write_map(sdir / f"LS11_{q}_NSIDE_{nside:04d}.fits", m, q, {"UNITS": unit}))
-        if gaia_dir is not None:
-            for name in mc.get("gaia_templates") or []:
-                src = Path(gaia_dir) / f"{nside:04d}" / f"GAIA_{name}_NSIDE_{nside:05d}.fits"
-                if src.exists():
-                    dst = sdir / src.name
-                    shutil.copyfile(src, dst)
-                    written.append(dst)
-                else:
-                    log.warning("no Gaia map %s", src)
-    return written
+class MapAccumulator:
+    """Per-pixel counts and sums of the footprint randoms, filled chunk by chunk (nothing stored)."""
+
+    def __init__(self, cfg: dict):
+        mc = cfg["maps"]
+        self.cfg = cfg
+        self.nsides = list(mc["nsides"])
+        self.quantities = list(mc["quantities"])
+        self.as_mag = mc.get("depth_as_mag", True)
+        self.count = {n: np.zeros(hp.nside2npix(n)) for n in self.nsides}
+        self.sums = {n: {q: np.zeros(hp.nside2npix(n)) for q in self.quantities} for n in self.nsides}
+        self.nval = {n: {q: np.zeros(hp.nside2npix(n)) for q in self.quantities} for n in self.nsides}
+
+    def columns(self) -> list[str]:
+        return ["RA", "DEC", *self.quantities]
+
+    def add(self, r: Mapping) -> None:
+        for n in self.nsides:
+            pix = pixel_index(r["RA"], r["DEC"], n)
+            npix = hp.nside2npix(n)
+            self.count[n] += np.bincount(pix, minlength=npix)
+            for q in self.quantities:
+                if q not in r:
+                    continue
+                v = quantity_values(r, q, self.as_mag)
+                good = np.isfinite(v)
+                self.sums[n][q] += np.bincount(pix[good], weights=v[good], minlength=npix)
+                self.nval[n][q] += np.bincount(pix[good], minlength=npix)
+
+    def write(self, out: Path, density: float, gaia_dir: Path | None = None) -> list[Path]:
+        written = []
+        for n in self.nsides:
+            expected = density * hp.nside2pixarea(n, degrees=True)
+            frac = np.full(self.count[n].size, hp.UNSEEN)
+            seen = self.count[n] > 0
+            frac[seen] = self.count[n][seen] / expected
+            written.append(write_map(out / "footprint" / f"LS11_FRACAREA_NSIDE_{n:04d}.fits", frac, "FRACAREA",
+                                     {"DENSITY": density}))
+            sdir = out / "systematics" / f"{n:04d}"
+            for q in self.quantities:
+                m = np.full(self.count[n].size, hp.UNSEEN)
+                ok = self.nval[n][q] > 0
+                m[ok] = self.sums[n][q][ok] / self.nval[n][q][ok]
+                unit = "AB mag, 5 sigma" if (self.as_mag and "DEPTH" in q) else ""
+                written.append(write_map(sdir / f"LS11_{q}_NSIDE_{n:04d}.fits", m, q, {"UNITS": unit}))
+            written += _copy_gaia(self.cfg, n, sdir, gaia_dir)
+        return written
+
+
+def _copy_gaia(cfg: dict, nside: int, sdir: Path, gaia_dir: Path | None) -> list[Path]:
+    out = []
+    if gaia_dir is None:
+        return out
+    for name in cfg["maps"].get("gaia_templates") or []:
+        src = Path(gaia_dir) / f"{nside:04d}" / f"GAIA_{name}_NSIDE_{nside:05d}.fits"
+        if src.exists():
+            dst = sdir / src.name
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst)
+            out.append(dst)
+        else:
+            log.warning("no Gaia map %s", src)
+    return out

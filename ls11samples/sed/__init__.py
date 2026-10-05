@@ -1,13 +1,14 @@
 """Stellar-mass / K-correction backends at fixed redshift, with one interface.
 
 Each backend is a class built from the configuration with ``fit(table) -> dict`` returning, per
-galaxy (NaN when the fit failed):
+galaxy (NaN when the fit failed or the code gives no such quantity):
 
-  LOGMSTAR, LOGMSTAR_LO, LOGMSTAR_HI   log10 stellar mass (Msun, Chabrier IMF) and 16/84% bounds
-                                       (LO = HI = LOGMSTAR for best-fit-only codes)
-  LOGSFR                               log10 SFR (Msun/yr), NaN when the code gives none
-  ABSMAG_R                             rest-frame DECam r absolute magnitude (AB)
-  CHI2                                 best-fit chi^2
+  LOGMSTAR, LOGMSTAR_ERR   log10 stellar mass (Msun, Chabrier IMF) and its 1-sigma uncertainty
+  MABS_R, MABS_R_ERR       rest-frame DECam r absolute magnitude (AB, H0 of the config) and error
+  LOGMSTAR_LO, LOGMSTAR_HI 16/84% bounds, LOGSFR (Msun/yr), CHI2: benchmark only
+
+PRODUCT lists the columns written to the per-sweep <ver>-<code> files (with SWEEP_ROW). The
+uncertainties are at fixed redshift (no photo-z term).
 
 Input table columns: BEST_Z, FLUX_<b>, FLUX_IVAR_<b>, MW_TRANSMISSION_<b> for b in G R I Z W1 W2.
 """
@@ -19,7 +20,8 @@ BACKENDS = {
     "eazy": "ls11samples.sed.eazy_fit:EazyBackend",
     "dsps": "ls11samples.sed.dsps_fit:DspsBackend",
 }
-OUTPUT = ("LOGMSTAR", "LOGMSTAR_LO", "LOGMSTAR_HI", "LOGSFR", "ABSMAG_R", "CHI2")
+PRODUCT = ("LOGMSTAR", "LOGMSTAR_ERR", "MABS_R", "MABS_R_ERR")
+OUTPUT = PRODUCT + ("LOGMSTAR_LO", "LOGMSTAR_HI", "LOGSFR", "CHI2")
 
 
 def get_backend(name: str):

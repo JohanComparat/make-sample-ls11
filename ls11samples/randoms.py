@@ -19,11 +19,6 @@ from .config import config_hash
 
 log = logging.getLogger(__name__)
 
-KEEP = (["RA", "DEC", "EBV", "MASKBITS", "PHOTSYS", "HPXPIXEL", "BRICKID"]
-        + [f"{p}_{b}" for p in ("NOBS", "GALDEPTH", "PSFDEPTH", "PSFSIZE") for b in "GRIZ"]
-        + ["PSFDEPTH_W1", "PSFDEPTH_W2"])
-
-
 class BoxSet:
     """Membership test for sweep boxes; O(1) per point when the boxes are on the 5x5 deg sweep grid."""
 
@@ -62,32 +57,42 @@ def file_density(path: str | Path, cfg: dict) -> float:
 
 
 def select_randoms(files: Sequence[str | Path], cfg: dict, boxes: BoxSet | None = None,
-                   keep: Sequence[str] = KEEP) -> tuple[dict, dict]:
-    """(randoms passing the footprint inside ``boxes``, header with area and counts)."""
+                   keep: Sequence[str] = ("RA", "DEC", "EBV"), maps=None) -> tuple[dict, dict]:
+    """(randoms passing the footprint inside ``boxes`` (columns ``keep``), header with area and
+    counts). ``maps`` (a :class:`ls11samples.maps.MapAccumulator`) is filled chunk by chunk with
+    the kept randoms, so map quantities need not be kept."""
     fcols = selection.footprint_columns(cfg)
+    extra = list(dict.fromkeys([*keep, *(maps.columns() if maps is not None else [])]))
     chunk = int(cfg["randoms"]["chunk_rows"])
     parts, n_box, n_pass, dens_total = [], 0, 0, 0.0
-    for ifile, path in enumerate(files):
+    for path in files:
         t0 = time.time()
         dens_total += file_density(path, cfg)
-        with_rows = []
+        n_file = 0
         for start, t in io.iter_rows(path, fcols, chunk):
             inb = np.ones(len(t["RA"]), bool) if boxes is None else boxes.contains(t["RA"], t["DEC"])
             sub = io.take(t, inb)
             ok = selection.footprint_mask(sub, cfg)
             n_box += int(inb.sum())
-            n_pass += int(ok.sum())
-            with_rows.append(start + np.flatnonzero(inb)[ok])
-        rows = np.concatenate(with_rows) if with_rows else np.zeros(0, np.int64)
-        r = io.read_table(path, keep, rows=rows)
-        r["RANDOM_FILE"] = np.full(len(rows), ifile, np.int16)
-        r["RANDOM_ROW"] = rows.astype(np.int64)
-        parts.append(r)
-        log.info("%s: %d in boxes, %d kept (%.0fs)", Path(path).name, n_box, len(rows), time.time() - t0)
-    rand = io.concat(parts)
+            rows = start + np.flatnonzero(inb)[ok]
+            if rows.size == 0:
+                continue
+            r = io.read_table(path, extra, rows=rows)
+            if maps is not None:
+                maps.add(r)
+            parts.append({k: r[k] for k in keep})
+            n_file += rows.size
+        n_pass += n_file
+        log.info("%s: %d kept (%.0fs)", Path(path).name, n_file, time.time() - t0)
+    rand = io.concat(parts) or {k: np.zeros(0) for k in keep}
+    for k in ("RA", "DEC"):
+        if k in rand:
+            rand[k] = rand[k].astype(np.float64)
+    if "EBV" in rand:
+        rand["EBV"] = rand["EBV"].astype(np.float32)
     area = n_pass / dens_total if dens_total else np.nan
     header = {"NRFILES": len(files), "DENSITY": dens_total, "NINBOX": n_box, "NRAND": n_pass,
-              "AREA": area, "BOXAREA": boxes.area if boxes is not None else -1.0,
+              "AREA": area, "BOXAREA": boxes.area if boxes is not None else -1.0, "TAG": cfg["tag"],
               "FPHASH": config_hash(cfg, "footprint"), "CFGHASH": config_hash(cfg),
               "MASKREJ": ",".join(selection.maskbits_reject(cfg))}
     for i, f in enumerate(files):

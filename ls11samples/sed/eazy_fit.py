@@ -109,7 +109,7 @@ class EazyBackend:
             out["LOGSFR"][idx] = np.log10(np.asarray(sps["sfr"], np.float64))
             rf = np.asarray(sps[f"rest{self.fnum['R']}"], np.float64)
             # rest-frame r flux (catalogue units, ZP 22.5) seen from the galaxy's distance
-            out["ABSMAG_R"][idx] = 22.5 - 2.5 * np.log10(rf) - distmod(z[ok], self.cfg) + 2.5 * np.log10(1 + z[ok])
+            out["MABS_R"][idx] = 22.5 - 2.5 * np.log10(rf) - distmod(z[ok], self.cfg) + 2.5 * np.log10(1 + z[ok])
         out["LOGMSTAR_LO"][:] = out["LOGMSTAR"]
         out["LOGMSTAR_HI"][:] = out["LOGMSTAR"]
         out["CHI2"][idx] = np.asarray(pz.chi2_best, np.float64)

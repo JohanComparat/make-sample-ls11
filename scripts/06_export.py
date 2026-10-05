@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """Step 6: check the volume-limited samples against the sys_mapping / sum_stat input formats and
-write $LS11_OUT/vlim/manifest.yaml (with the systematics template directories).
+write $LS11_OUT/<tag>/vlim/manifest.yaml (with the systematics template directories).
 
-sys_mapping:  run_ls10_analysis.py --catalog-dir $LS11_OUT/vlim --sample <name>
-                                    --template-dir $LS11_OUT/systematics/<nside:04d> --nside <nside>
+sys_mapping:  run_ls10_analysis.py --catalog-dir $LS11_OUT/<tag>/vlim --sample <name>
+                                    --template-dir $LS11_OUT/<tag>/systematics/<nside:04d> --nside <nside>
 sum_stat:     measure_joint_sumstat.py --survey custom --data-file <name>_DATA.fits --rand-file <name>_RAND.fits
 """
 
@@ -46,18 +46,19 @@ def main():
     p = cli.parser(__doc__)
     args = p.parse_args()
     cfg, paths, _ = cli.setup(args)
-    vdir = paths.out / "vlim"
+    tag = cfg["tag"]
+    vdir = paths.out / tag / "vlim"
     mpath = vdir / "manifest.yaml"
     manifest = yaml.safe_load(mpath.read_text())
     errors = []
     for s in manifest["samples"]:
         errors += check_sample(vdir, s["NAME"])
     manifest["sys_mapping"] = {"catalog_dir": str(vdir),
-                               "template_dirs": {int(n): str(paths.out / "systematics" / f"{n:04d}")
+                               "template_dirs": {int(n): str(paths.out / tag / "systematics" / f"{n:04d}")
                                                  for n in cfg["maps"]["nsides"]},
-                               "fracarea": {int(n): str(paths.out / "footprint" / f"LS11_FRACAREA_NSIDE_{n:04d}.fits")
+                               "fracarea": {int(n): str(paths.out / tag / "footprint" / f"LS11_FRACAREA_NSIDE_{n:04d}.fits")
                                             for n in cfg["maps"]["nsides"]}}
-    manifest["sum_stat"] = {"survey": "custom", "data_columns": ["RA", "DEC", "BEST_Z", "LPH_MASS_BEST", "ABSMAG_R"],
+    manifest["sum_stat"] = {"survey": "custom", "data_columns": ["RA", "DEC", "BEST_Z", "LPH_MASS_BEST", "MABS_R"],
                             "rand_columns": ["RA", "DEC", "Z"], "colour_file": "<name>_COLOUR.fits"}
     manifest["checks"] = {"n_samples": len(manifest["samples"]), "errors": errors}
     mpath.write_text(yaml.safe_dump(manifest, sort_keys=False))

@@ -4,9 +4,12 @@ LS11_DIR        Legacy Surveys DR11 root                 [~/data/legacysurvey/dr
 LS11_REGION     south | north                             [south]
 LS11_SWEEP_VER  sweep version directory                  [11.0]
 LS11_SWEEPS     optional glob restricting the sweeps      [sweep-*.fits]
+LS11_SWEEP_OUT  root of the per-sweep products           [$LS11_DIR/$LS11_REGION/sweep]
+                (<root>/<ver>-<name>/<sweep>-<name>.fits, next to <ver>/ and <ver>-photo-z/)
 LS11_RANDOMS    glob of random files (relative to $LS11_DIR/$LS11_REGION/randoms, or absolute)
                                                           [randoms-$LS11_REGION-1-0.fits]
-LS11_OUT        output root                               [$LS11_DIR/$LS11_REGION/samples]
+LS11_OUT        root of the per-run products (randoms, maps, samples, logs): <root>/<tag>/
+                                                          [$LS11_DIR/$LS11_REGION]
 LS11_CONFIG     selection configuration                   [config/default.yaml of this repo]
 LS11_GAIA_MAPS  directory of full-sky Gaia star-density maps (<nside:04d>/GAIA_*.fits)
                                                           [~/data/legacysurvey/dr10/systematics]
@@ -37,6 +40,7 @@ class Paths:
     sweep_glob: str
     randoms_glob: str
     out: Path
+    sweep_out: Path
     gaia_maps: Path
 
     @property
@@ -60,23 +64,21 @@ class Paths:
             pattern = str(self.region_dir / "randoms" / pattern)
         return sorted(Path(p) for p in glob.glob(pattern))
 
-    def outdir(self, *parts: str) -> Path:
-        d = self.out.joinpath(*parts)
+    # per-sweep products, next to the sweeps: <sweep_out>/<ver>-<name>/<sweep stem>-<name>.fits
+    def product_dir(self, name: str) -> Path:
+        return self.sweep_out / f"{self.sweep_ver}-{name}"
+
+    def product(self, sweep: str | Path, name: str) -> Path:
+        return self.product_dir(name) / f"{Path(sweep).stem}-{name}.fits"
+
+    # per-run products: <out>/<tag>/...
+    def run_dir(self, tag: str, *parts: str) -> Path:
+        d = self.out.joinpath(tag, *parts)
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    # standard products
-    @property
-    def bgsl_dir(self) -> Path:
-        return self.outdir("bgsl")
-
-    @property
-    def data_file(self) -> Path:
-        return self.out / "LS11_BGSl_DATA.fits"
-
-    @property
-    def rand_file(self) -> Path:
-        return self.out / "LS11_BGSl_RAND.fits"
+    def rand_file(self, tag: str) -> Path:
+        return self.out / tag / f"LS11_{tag}_RAND.fits"
 
 
 def get_paths() -> Paths:
@@ -89,6 +91,7 @@ def get_paths() -> Paths:
         sweep_glob=os.environ.get("LS11_SWEEPS", "sweep-*.fits"),
         randoms_glob=os.path.expandvars(os.path.expanduser(
             os.environ.get("LS11_RANDOMS", f"randoms-{region}-1-0.fits"))),
-        out=_env_path("LS11_OUT", str(ls_dir / region / "samples")),
+        out=_env_path("LS11_OUT", str(ls_dir / region)),
+        sweep_out=_env_path("LS11_SWEEP_OUT", str(ls_dir / region / "sweep")),
         gaia_maps=_env_path("LS11_GAIA_MAPS", "~/data/legacysurvey/dr10/systematics"),
     )

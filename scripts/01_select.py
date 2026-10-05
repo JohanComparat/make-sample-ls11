@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Step 1: BGS-like parent table + cut-flow for every sweep ($LS11_OUT/bgsl/BGSl-<sweep>.fits)."""
+"""Step 1: selection file per sweep (<sweep root>/<ver>-<tag>/<sweep>-<tag>.fits, + HDU CUTFLOW)."""
 
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
@@ -15,7 +15,8 @@ def main():
     sweeps = cli.my_part(paths.sweeps(), args.part, args.nparts)
     if not sweeps:
         raise SystemExit(f"no sweeps in {paths.sweep_dir} matching {paths.sweep_glob}")
-    run = partial(bgsl.run_sweep, cfg=cfg, outdir=paths.bgsl_dir, overwrite=args.overwrite)
+    paths.product_dir(cfg["tag"]).mkdir(parents=True, exist_ok=True)
+    run = partial(bgsl.run_sweep, cfg=cfg, paths=paths, overwrite=args.overwrite)
     if n == 1:
         list(map(run, sweeps))
     else:

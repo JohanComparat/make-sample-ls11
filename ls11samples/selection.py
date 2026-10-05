@@ -98,8 +98,8 @@ def galaxy_columns(cfg: dict) -> list[str]:
     g = cfg["galaxy"]
     cols = ["TYPE", "FITBITS", "FLUX_G", "FLUX_R", "FLUX_Z", "MW_TRANSMISSION_G", "MW_TRANSMISSION_R",
             "MW_TRANSMISSION_Z", "FIBERFLUX_R", "FIBERTOTFLUX_R", "GAIA_PHOT_G_MEAN_MAG"]
-    cols += [f"FLUX_IVAR_{b}" for b in g["flux_ivar_positive"]]
-    for b in g["quality"]["bands"]:
+    cols += [f"FLUX_IVAR_{b}" for b in g.get("flux_ivar_positive") or []]
+    for b in (g.get("quality") or {}).get("bands", []):
         cols += [f"FRACMASKED_{b}", f"FRACIN_{b}", f"FRACFLUX_{b}"]
     return list(dict.fromkeys(cols))
 
@@ -109,43 +109,74 @@ def r_mag(t: Mapping) -> np.ndarray:
 
 
 def galaxy_cuts(t: Mapping, cfg: dict) -> dict[str, np.ndarray]:
-    """{cut name: pass} for the object-level BGS-like cuts (dereddened magnitudes)."""
+    """{cut name: pass} for the object-level cuts (dereddened magnitudes). A cut whose configuration
+    is null or empty is switched off (all pass), e.g. in config/bgs_r21_dr10bits.yaml."""
     g = cfg["galaxy"]
     n = len(t["RA"])
+    allpass = np.ones(n, bool)
     gm = mag(t["FLUX_G"], t["MW_TRANSMISSION_G"])
     rm = mag(t["FLUX_R"], t["MW_TRANSMISSION_R"])
     zm = mag(t["FLUX_Z"], t["MW_TRANSMISSION_Z"])
-    rfib = mag(t["FIBERFLUX_R"], t["MW_TRANSMISSION_R"])
-    rfibtot = mag(t["FIBERTOTFLUX_R"], t["MW_TRANSMISSION_R"])
     cuts = {}
     r0, r1 = g["r_range"]
     cuts["rmag"] = (rm > r0) & (rm <= r1)
-    cuts["type"] = ~np.isin(np.char.strip(np.asarray(t["TYPE"]).astype("U")), g["reject_types"])
-    cuts["fitbits"] = ~bits.any_set(t["FITBITS"], bits.mask_value(g["fitbits_reject"], bits.FITBIT))
+    rt = g.get("reject_types") or []
+    cuts["type"] = ~np.isin(np.char.strip(np.asarray(t["TYPE"]).astype("U")), rt) if rt else allpass
+    fb = g.get("fitbits_reject") or []
+    cuts["fitbits"] = ~bits.any_set(t["FITBITS"], bits.mask_value(fb, bits.FITBIT)) if fb else allpass
     ok = np.ones(n, bool)
-    for b in g["flux_ivar_positive"]:
+    for b in g.get("flux_ivar_positive") or []:
         ok &= np.asarray(t[f"FLUX_IVAR_{b}"]) > 0
     cuts["flux_ivar"] = ok
-    gaia_g = np.asarray(t["GAIA_PHOT_G_MEAN_MAG"], np.float64)
-    r_raw = mag(t["FLUX_R"])                       # not dereddened, as in DESI targeting
     with np.errstate(invalid="ignore"):
-        cuts["gaia"] = (gaia_g == 0) | (gaia_g - r_raw > g["gaia_star_cut"])
-        (gr0, gr1), (rz0, rz1) = g["colour"]["gr"], g["colour"]["rz"]
-        cuts["colour"] = (gm - rm > gr0) & (gm - rm < gr1) & (rm - zm > rz0) & (rm - zm < rz1)
-    q = g["quality"]
+        if g.get("gaia_star_cut") is not None:
+            gaia_g = np.asarray(t["GAIA_PHOT_G_MEAN_MAG"], np.float64)
+            cuts["gaia"] = (gaia_g == 0) | (gaia_g - mag(t["FLUX_R"]) > g["gaia_star_cut"])
+        else:
+            cuts["gaia"] = allpass
+        if g.get("colour"):
+            (gr0, gr1), (rz0, rz1) = g["colour"]["gr"], g["colour"]["rz"]
+            cuts["colour"] = (gm - rm > gr0) & (gm - rm < gr1) & (rm - zm > rz0) & (rm - zm < rz1)
+        else:
+            cuts["colour"] = allpass
+    q = g.get("quality")
     ok = np.ones(n, bool)
-    for b in q["bands"]:
-        ok &= np.asarray(t[f"FRACMASKED_{b}"]) < q["fracmasked_max"]
-        ok &= np.asarray(t[f"FRACIN_{b}"]) > q["fracin_min"]
-        ok &= np.asarray(t[f"FRACFLUX_{b}"]) < q["fracflux_max"]
+    if q:
+        for b in q["bands"]:
+            ok &= np.asarray(t[f"FRACMASKED_{b}"]) < q["fracmasked_max"]
+            ok &= np.asarray(t[f"FRACIN_{b}"]) > q["fracin_min"]
+            ok &= np.asarray(t[f"FRACFLUX_{b}"]) < q["fracflux_max"]
     cuts["quality"] = ok
-    fb = g["fiber"]
     with np.errstate(invalid="ignore"):
-        lim = np.where(rm < fb["r_pivot"], fb["rfib_max"] + (rm - fb["r_pivot"]), fb["rfib_max"])
-        cuts["fiber"] = rfib < lim
-        rt = g["rfibtot"]
-        cuts["rfibtot"] = ~((rm > rt["r_min"]) & (rfibtot < rt["rfibtot_min"]))
+        fb_cfg = g.get("fiber")
+        if fb_cfg:
+            rfib = mag(t["FIBERFLUX_R"], t["MW_TRANSMISSION_R"])
+            lim = np.where(rm < fb_cfg["r_pivot"], fb_cfg["rfib_max"] + (rm - fb_cfg["r_pivot"]), fb_cfg["rfib_max"])
+            cuts["fiber"] = rfib < lim
+        else:
+            cuts["fiber"] = allpass
+        rt_cfg = g.get("rfibtot")
+        if rt_cfg:
+            rfibtot = mag(t["FIBERTOTFLUX_R"], t["MW_TRANSMISSION_R"])
+            cuts["rfibtot"] = ~((rm > rt_cfg["r_min"]) & (rfibtot < rt_cfg["rfibtot_min"]))
+        else:
+            cuts["rfibtot"] = allpass
     return cuts
+
+
+STAR_PSF, STAR_GAIA = 1, 2
+
+
+def star_flag(t: Mapping, gaia_cut: float = 0.6) -> np.ndarray:
+    """Bit 0: TYPE == PSF; bit 1: Gaia match with G - r_raw <= gaia_cut (r not dereddened, the DESI /
+    DR10 star test). Information only, never a cut."""
+    flag = np.zeros(len(t["TYPE"]), np.uint8)
+    flag |= np.where(np.char.strip(np.asarray(t["TYPE"]).astype("U")) == "PSF", STAR_PSF, 0).astype(np.uint8)
+    g = np.asarray(t["GAIA_PHOT_G_MEAN_MAG"], np.float64)
+    with np.errstate(invalid="ignore"):
+        star = (g > 0) & (g - mag(t["FLUX_R"]) <= gaia_cut)
+    flag |= np.where(star, STAR_GAIA, 0).astype(np.uint8)
+    return flag
 
 
 def sel_flags(cuts: Mapping[str, np.ndarray]) -> np.ndarray:

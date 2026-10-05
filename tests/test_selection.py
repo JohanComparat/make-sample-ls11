@@ -69,11 +69,11 @@ def test_boxset_grid_equals_loop(rng):
 def test_cutflow_monotonic(cfg, first_sweep):
     t, flow, hdr = bgsl.select_sweep(first_sweep, cfg)
     assert np.all(np.diff(flow["N_PASS_CUMUL"]) <= 0)
-    assert flow["N_PASS_CUMUL"][-1] == hdr["NSEL"] == np.count_nonzero(t["SEL_FLAGS"] == 0)
-    s = t["SEL_FLAGS"] == 0
-    assert np.all(t["MAG_R"][s] <= cfg["galaxy"]["r_range"][1])
-    assert np.all(t["LS_ID_DR11"] > 0) and np.isfinite(t["BEST_Z"][s]).mean() > 0.99
-    assert hdr["FPHASH"]
+    assert flow["N_PASS_CUMUL"][-1] == hdr["NSEL"] == len(t["SWEEP_ROW"])
+    assert set(t) == {"LS_ID_DR11", "SWEEP_ROW", "BEST_Z", "BEST_Z_ERR", "Z_SOURCE", "STAR_FLAG"}
+    assert np.all(np.diff(t["SWEEP_ROW"]) > 0) and np.all(t["LS_ID_DR11"] > 0)
+    assert np.isfinite(t["BEST_Z"]).mean() > 0.99
+    assert hdr["FPHASH"] and "BRIGHT(1)" in hdr["MASKREJ"]
 
 
 def test_fracarea_uniform(rng):
@@ -84,3 +84,37 @@ def test_fracarea_uniform(rng):
     dens = n / 41252.96
     m = maps.fracarea_map(maps.pixel_index(ra, dec, 8), 8, dens)
     assert m.mean() == pytest.approx(1, abs=0.01)
+
+
+def _galaxy_table(n, rng):
+    return {"RA": np.zeros(n), "TYPE": rng.choice(["PSF", "REX", "DUP", "SER"], n),
+            "FITBITS": rng.choice([0, 0, 2, 4096, 512], n).astype(np.int16),
+            "FLUX_G": rng.uniform(-1, 30, n), "FLUX_R": rng.uniform(0.5, 60, n), "FLUX_Z": rng.uniform(-1, 90, n),
+            "MW_TRANSMISSION_G": np.ones(n), "MW_TRANSMISSION_R": np.ones(n), "MW_TRANSMISSION_Z": np.ones(n),
+            "FIBERFLUX_R": rng.uniform(0, 5, n), "FIBERTOTFLUX_R": rng.uniform(0, 5, n),
+            "GAIA_PHOT_G_MEAN_MAG": rng.choice([0.0, 18.0, 20.5], n),
+            "FLUX_IVAR_G": rng.uniform(-1, 1, n), "FLUX_IVAR_R": np.ones(n), "FLUX_IVAR_Z": np.ones(n),
+            **{f"{q}_{b}": rng.uniform(0, 1, n) for q in ("FRACMASKED", "FRACIN", "FRACFLUX") for b in "GRZ"}}
+
+
+def test_r21_config_only_bits_and_magnitude(rng):
+    from ls11samples.config import load_config, DEFAULT
+
+    cfg = load_config(DEFAULT.parent / "bgs_r21_dr10bits.yaml")
+    assert cfg["tag"] == "bgsr21" and cfg["galaxy"]["r_range"] == [13.0, 21.0]
+    assert cfg["footprint"]["maskbits_reject"] == ["NPRIMARY", "BRIGHT", "MEDIUM", "GALAXY", "CLUSTER"]
+    assert cfg["cosmology"]["H0"] == 67.74                     # inherited from default.yaml
+    t = _galaxy_table(4000, rng)
+    cuts = selection.galaxy_cuts(t, cfg)
+    for name in ("type", "flux_ivar", "gaia", "colour", "quality", "fiber", "rfibtot"):
+        assert cuts[name].all(), name
+    fit_rejected = np.isin(t["FITBITS"], [2, 4096])            # FIT_BACKGROUND, GAIA_POINTSOURCE
+    assert np.array_equal(cuts["fitbits"], ~fit_rejected)      # LARGEGALAXY (512) is kept
+    r = 22.5 - 2.5 * np.log10(t["FLUX_R"])
+    assert np.array_equal(cuts["rmag"], (r > 13) & (r <= 21))
+
+
+def test_star_flag():
+    t = {"TYPE": np.array(["PSF", "PSF", "REX", "SER"]), "GAIA_PHOT_G_MEAN_MAG": np.array([0.0, 18.0, 18.0, 25.0]),
+         "FLUX_R": np.full(4, 10 ** (-0.4 * (18.0 - 22.5)))}           # r_raw = 18
+    assert selection.star_flag(t).tolist() == [1, 3, 2, 0]

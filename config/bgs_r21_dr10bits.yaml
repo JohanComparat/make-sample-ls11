@@ -1,0 +1,27 @@
+# LS DR11 run "bgsr21": every object brighter than r = 21 inside the footprint, with the DR10 bit
+# masks and no other galaxy cut (no star/galaxy separation: STAR_FLAG records it instead).
+# Footprint (galaxies and randoms): NOBS, GALDEPTH, MASKBITS 0,1,11,12,13, E(B-V) < 0.1, south.
+# MEDIUM (11) and GALAXY (12) are not DR10 bits; they are masked so that the randoms lose the
+# area the FITBITS cut empties of galaxies (3.3% of the footprint, otherwise a density deficit).
+base: default.yaml
+tag: bgsr21
+
+galaxy:
+  # DR10 FITBITS (1, 6, 10, 11, 12, 13), from default.yaml: FIT_BACKGROUND, MEDIUM, WALKER,
+  # RUNNER, GAIA_POINTSOURCE, ITERATIVE
+  r_range: [13.0, 21.0]
+  reject_types: []
+  flux_ivar_positive: []
+  gaia_star_cut: null
+  colour: null
+  quality: null
+  fiber: null
+  rfibtot: null
+
+sed:
+  codes: [lephare, cigale, kcorrect]
+  primary: lephare
+
+vlim:
+  n_rand_factor: 5           # as for DR10; keeps the per-sample random files small
+  exclude_star_flag: 3       # no star/galaxy cut in the selection: leave out PSF and Gaia stars

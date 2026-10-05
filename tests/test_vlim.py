@@ -13,7 +13,7 @@ def _mock(cfg, rng, n=300_000, rlim=19.5):
     r = M + distmod(z, cfg) + k
     logm = 10.5 - 0.4 * (M + 20.5) + rng.normal(0, 0.1, n)
     keep = r <= rlim
-    return {"BEST_Z": z[keep], "ABSMAG_R": M[keep], "KCORR_R": k[keep], "MAG_R": r[keep],
+    return {"BEST_Z": z[keep], "MABS_R": M[keep], "KCORR_R": k[keep], "MAG_R": r[keep],
             "LOGMSTAR": logm[keep], "MAG_G": r[keep] + 0.7, "MAG_Z": r[keep] - 0.4,
             "RA": rng.uniform(0, 5, keep.sum()), "DEC": rng.uniform(-5, 0, keep.sum()),
             "EBV": np.zeros(keep.sum(), np.float32)}

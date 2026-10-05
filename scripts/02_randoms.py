@@ -1,13 +1,12 @@
 #!/usr/bin/env python
-"""Step 2: merge the BGS-like galaxies (LS11_BGSl_DATA.fits), select the footprint randoms
-(LS11_BGSl_RAND.fits) and make the footprint / systematics HEALPix maps."""
+"""Step 2: footprint randoms ($LS11_OUT/<tag>/LS11_<tag>_RAND.fits: RA, DEC, EBV) and the
+footprint / systematics HEALPix maps, accumulated while the random files are read."""
 
 import logging
 
-import numpy as np
-
-from ls11samples import bgsl, cli, io, maps, randoms
+from ls11samples import cli, io, randoms
 from ls11samples.config import config_hash
+from ls11samples.maps import MapAccumulator
 
 log = logging.getLogger("ls11samples.step2")
 
@@ -17,45 +16,29 @@ def main():
     p.add_argument("--no-maps", action="store_true")
     args = p.parse_args()
     cfg, paths, _ = cli.setup(args)
+    tag = cfg["tag"]
     sweeps = paths.sweeps()
-    files = [paths.bgsl_dir / bgsl.output_name(s) for s in sweeps]
-    missing = [f.name for f in files if not f.exists()]
+    missing = [s.name for s in sweeps if not paths.product(s, tag).exists()]
     if missing:
-        raise SystemExit(f"step 1 outputs missing: {missing[:5]} ... ({len(missing)})")
+        raise SystemExit(f"step 1 outputs missing for {len(missing)} sweeps, e.g. {missing[:3]}")
     fphash = config_hash(cfg, "footprint")
-    for f in files:
-        h = io.read_header(f, "PARENT")
-        if h["FPHASH"] != fphash:
-            raise SystemExit(f"{f.name} was made with another footprint configuration; rerun step 1")
-
-    # randoms
-    boxes = randoms.BoxSet([io.sweep_box(s) for s in sweeps])
+    for s in sweeps:
+        if io.read_header(paths.product(s, tag), 1)["FPHASH"] != fphash:
+            raise SystemExit(f"{paths.product(s, tag).name} was made with another footprint; rerun step 1")
+    out = paths.rand_file(tag)
+    if out.exists() and not args.overwrite:
+        log.info("%s exists; use --overwrite to redo it", out)
+        return
     rfiles = paths.random_files()
     if not rfiles:
         raise SystemExit(f"no random files for {paths.randoms_glob}")
-    if paths.rand_file.exists() and not args.overwrite:
-        rand = io.read_table(paths.rand_file)
-        rhdr = dict(io.read_header(paths.rand_file, 1))
-        log.info("read existing %s", paths.rand_file)
-    else:
-        rand, rhdr = randoms.select_randoms(rfiles, cfg, boxes)
-        io.write_table(paths.rand_file, rand, header=rhdr, extname="RANDOMS")
-    area = float(rhdr["AREA"])
-    log.info("randoms: %d in footprint, area %.2f deg2 (sweep boxes %.2f deg2)", len(rand["RA"]), area, boxes.area)
-
-    # galaxies
-    if not paths.data_file.exists() or args.overwrite:
-        data = bgsl.read_selected(files)
-        hdr = {"NSWEEPS": len(files), "NGAL": len(data["RA"]), "AREA": area,
-               "NDENS": len(data["RA"]) / area, "FPHASH": fphash, "CFGHASH": config_hash(cfg),
-               "RANDFILE": paths.rand_file.name}
-        hdr.update({k: v for k, v in dict(io.read_header(files[0], "PARENT")).items()
-                    if k.startswith(("SELBIT", "ZSRC", "MASKREJ", "FITREJ", "RMAX"))})
-        io.write_table(paths.data_file, data, header=hdr, extname="BGSL")
-        log.info("galaxies: %d, %.1f per deg2", len(data["RA"]), len(data["RA"]) / area)
-
-    if not args.no_maps:
-        written = maps.make_maps(rand, cfg, paths.out, float(rhdr["DENSITY"]), paths.gaia_maps)
+    boxes = randoms.BoxSet([io.sweep_box(s) for s in sweeps])
+    acc = None if args.no_maps else MapAccumulator(cfg)
+    rand, hdr = randoms.select_randoms(rfiles, cfg, boxes, maps=acc)
+    io.write_table(out, rand, header=hdr, extname="RANDOMS")
+    log.info("randoms: %d in footprint, area %.2f deg2 (sweep boxes %.2f deg2)", len(rand["RA"]), hdr["AREA"], boxes.area)
+    if acc is not None:
+        written = acc.write(paths.run_dir(tag), float(hdr["DENSITY"]), paths.gaia_maps)
         log.info("%d maps written", len(written))
 
 
