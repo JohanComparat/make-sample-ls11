@@ -15,9 +15,9 @@ Volume-limited galaxy samples and matching randoms from the Legacy Surveys DR11
 | 5 | `scripts/05_vlim.py` | Mr and M* volume-limited samples + randoms |
 | 6 | `scripts/06_export.py` | `sys_mapping` / `sum_stat` inputs + manifest |
 
-Steps 1–2 are implemented; steps 3–6 are in progress. `scripts/run_all.sh` runs the steps in
-order. `cc_in2p3/` holds the batch scripts for the full
-footprint.
+`scripts/run_all.sh` runs the steps in order. `cc_in2p3/submit_all.sh` submits them on CC-IN2P3
+as Slurm job arrays with dependencies. Steps 1, 3 and 4 run per sweep (one sweep per process or
+array task), and steps 3–5 join products to the galaxies by `LS_ID_DR11`.
 
 ## Selection (`config/default.yaml`)
 
@@ -44,6 +44,48 @@ the `MBIT_n` / `FBIT_n` keywords of each sweep header.
 - **ID check.** The photo-z rows are checked object by object against the sweep IDs
   (`LS_ID_DR11`).
 
+## K-corrections, absolute magnitudes, stellar masses
+
+**K-corrections (step 3).** kcorrect v5 (Blanton & Roweis 2007) fits the dereddened grizW1W2
+fluxes at z = `BEST_Z`. It produces:
+- `KCORR_<b>` and `ABSMAG_<b>` for b = G, R, Z, in rest-frame DECam bands;
+- `ABSMAG_R01` in SDSS ^{0.1}r;
+- `KC_LOGMSTAR`.
+
+The Mr completeness limit uses the 95th percentile of the r-band K-correction of a complete
+low-z SED set, evaluated at every z. This avoids biasing the limit with the K-corrections of
+flux-limited high-z galaxies.
+
+**Stellar masses (step 4).** `ls11samples/sed/` runs five codes behind one interface, all at
+fixed z and with identical filter curves, photometry and error floor:
+
+| code | models |
+|---|---|
+| kcorrect | NMF templates |
+| LePhare | `config/lephare/LS11_zFIX.para`: BC03 Chabrier, Calzetti, the DR10 set-up |
+| CIGALE | delayed-τ + BC03 + nebular + modified starburst |
+| eazy | `corr_sfhz_13` templates |
+| DSPS | FSPS SSPs and a jax-tabulated delayed-τ × Z × A_V grid |
+
+`benchmarks/sed_benchmark.py` compares the five codes on cost, agreement, photo-z sensitivity
+and the DR10 LePhare masses. The production code is `sed.code` in the config.
+
+**Volume-limited samples (step 5).** These are built in Mr (thresholds −18 … −22.5) and in M*
+(9.0 … 11.5). The completeness limits come from the data:
+- Mr: the K_95 method above;
+- M*: Pozzetti et al. (2010).
+
+Each sample has three files, named
+`LS11_VLIM_ANY_<lo>_<Mr|Mstar>_<hi>_<zmin>_z_<zmax>_N_<N>`:
+- `_DATA.fits`, the galaxies;
+- `_RAND.fits`, with 20× more randoms than galaxies and shuffled redshifts;
+- `_COLOUR.fits`.
+
+**Downstream (step 6).**
+- *sys_mapping*: `--catalog-dir $LS11_OUT/vlim --template-dir $LS11_OUT/systematics/<nside>`.
+- *sum_stat*: `--survey custom --data-file … --rand-file …` (`BEST_Z`, `LPH_MASS_BEST`,
+  `RAND.Z`).
+
 ## Environment
 
 All paths come from environment variables. On the laptop the defaults are enough; on CC-IN2P3,
@@ -60,6 +102,9 @@ set them in `cc_in2p3/env_ccin2p3.sh`.
 | `LS11_CONFIG` | `config/default.yaml` |
 | `LS11_GAIA_MAPS` | `~/data/legacysurvey/dr10/systematics` (full-sky Gaia star-density maps) |
 | `LS11_NPROC` | `min(8, ncpu)` |
+| `LEPHAREDIR`, `LEPHAREWORK` | LePhare data and libraries (default `~/.cache/lephare/{data,work}`) |
+| `EAZY_DATA` | eazy-photoz templates and filters (default `~/.cache/eazy-photoz`, cloned when missing) |
+| `DSPS_DRN` | DSPS SSP file `ssp_data_fsps_v3.2_lgmet_age.h5` (default `~/.cache/dsps`) |
 
 ## Install
 

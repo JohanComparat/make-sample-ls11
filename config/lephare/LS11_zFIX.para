@@ -63,8 +63,6 @@ EBV_RANGE       0,9
 MABS_METHOD     1
 MABS_CONTEXT    -1
 MABS_REF        2
-MABS_FILT       1,2,3,4,5,6
-MABS_ZBIN       0,6
 AUTO_ADAPT      NO
 SPEC_OUT        NO
 CHI2_OUT        NO

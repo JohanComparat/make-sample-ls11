@@ -19,6 +19,7 @@ from .filters import write_lephare_filters
 
 log = logging.getLogger(__name__)
 PARA = Path(__file__).resolve().parents[2] / "config" / "lephare" / "LS11_zFIX.para"
+PARA_OUT = PARA.with_name("output_ls11.para")
 
 
 class LephareBackend:
@@ -32,6 +33,7 @@ class LephareBackend:
         self.config = lp.read_config(str(para or PARA))
         lephare_dir = Path(os.environ.get("LEPHAREDIR", lp.LEPHAREDIR))
         self.config["FILTER_REP"] = lp.keyword("FILTER_REP", str(lephare_dir / "filt"))
+        self.config["PARA_OUT"] = lp.keyword("PARA_OUT", str(PARA_OUT))
         write_lephare_filters(lephare_dir)
         self._get_data(lephare_dir)
         work = Path(os.environ["LEPHAREWORK"])
@@ -90,15 +92,9 @@ class LephareBackend:
         fill = ~np.isfinite(out["LOGMSTAR"][idx])
         out["LOGMSTAR"][idx[fill]] = best[fill]
         out["LOGSFR"][idx] = col("SFR_MED")
-        out["ABSMAG_R"][idx] = col("MAG_ABS_ls11/decam_r.pb") if "MAG_ABS_ls11/decam_r.pb" in res.colnames \
-            else col(_absmag_column(res.colnames))
+        mabs = np.asarray(res["MAG_ABS()"], np.float64)            # (n, nfilter), filter order = BANDS
+        r = mabs[:, BANDS.index("R")]
+        out["ABSMAG_R"][idx] = np.where((r > -90) & (r < 0), r, np.nan)
         out["CHI2"][idx] = col("CHI_BEST")
         self.last = res
         return out
-
-
-def _absmag_column(names) -> str:
-    cand = [c for c in names if c.startswith("MAG_ABS") and ("decam_r" in c or c.endswith("_2") or c == "MAG_ABS2")]
-    if not cand:
-        raise KeyError(f"no r-band absolute magnitude among {list(names)[:40]}")
-    return cand[0]
