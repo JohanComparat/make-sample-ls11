@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# data products and run outputs (they live under $LS11_OUT, never in the repo)
+*.fits
+*.fits.gz
+*.fits.fz
+*.h5
+*.hdf5
+*.npy
+*.parquet
+outputs/
+logs/
+*.log
+benchmarks/runs/
+
+# editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store

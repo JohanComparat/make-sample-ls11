@@ -1,0 +1,85 @@
+# LS DR11 BGS-like samples: every selection choice lives here (override with $LS11_CONFIG).
+# Bits are given by NAME; their numbers are checked against the sweep headers (MBIT_n / FBIT_n),
+# so a change of the DR11 bit layout fails loudly instead of silently masking the wrong thing.
+
+cosmology:                # flat LCDM, as for the DR10 BGS-like samples
+  H0: 67.74
+  Om0: 0.3089
+
+photometry:
+  zeropoint: 22.5         # nanomaggies -> AB
+  bands: [G, R, I, Z, W1, W2]
+  err_floor_mag: {G: 0.02, R: 0.02, I: 0.02, Z: 0.02, W1: 0.05, W2: 0.05}
+
+# Footprint cuts: applied by the SAME function to galaxies and to randoms (columns both have).
+footprint:
+  nobs_min: {G: 1, R: 1, Z: 1}
+  galdepth_positive: [G, R, Z]
+  # DESI BGS imaging mask (BRIGHT, GALAXY = SGA, CLUSTER) + pixels outside the brick-primary area
+  # + MEDIUM: in DR11, 97% of the FITBITS FIT_BACKGROUND objects (which the galaxy cuts reject, as
+  # for DR10) lie in MEDIUM-star masks, so MEDIUM is masked here to remove that area from the
+  # randoms as well (otherwise galaxies, not randoms, are missing around medium-bright stars).
+  maskbits_reject: [NPRIMARY, BRIGHT, MEDIUM, GALAXY, CLUSTER]
+  # Stricter option (rema): [SATUR_G, SATUR_R, SATUR_Z, ALLMASK_G, ALLMASK_R, ALLMASK_Z,
+  #                          BAILOUT, SATUR_I, ALLMASK_I, RESOLVED, MCLOUDS]
+  maskbits_reject_extra: []
+  ebv_max: 0.1
+  # DESI north/south split: drop Dec >= 32.375 in the north galactic cap (photometry from BASS/MzLS
+  # in the north catalogues). No-op in the SGC; replaces the DR10 ad hoc (100<RA<180, Dec<32) cut.
+  south_only: true
+
+# Object-level cuts, galaxies only (the randoms cannot carry them).
+galaxy:
+  reject_types: [DUP]
+  # As for DR10 (bits 1, 6, 10, 11, 12, 13). LARGEGALAXY (9) is not rejected here, but SGA
+  # galaxies sit in MASKBITS GALAXY and are removed by the footprint unless keep_sga is true.
+  fitbits_reject: [FIT_BACKGROUND, MEDIUM, WALKER, RUNNER, GAIA_POINTSOURCE, ITERATIVE]
+  keep_sga: false           # true: keep SGA centrals (FITBITS LARGEGALAXY) inside the GALAXY mask
+  flux_ivar_positive: [G, R, Z]
+  gaia_star_cut: 0.6        # galaxy if G_Gaia - r_raw > 0.6 or no Gaia match (G == 0); r_raw not dereddened
+  colour:                   # DESI main BGS. DR10 used g-r in [-0.2, 2.0], r-z in [-0.2, 1.6]
+    gr: [-1.0, 4.0]
+    rz: [-1.0, 4.0]
+  quality:                  # DESI SV BGS quality cuts, per band in `bands`
+    bands: [G, R, Z]
+    fracmasked_max: 0.4
+    fracin_min: 0.3
+    fracflux_max: 5.0
+  fiber:                    # DESI BGS fibre-magnitude cut (dereddened)
+    rfib_max: 22.9
+    r_pivot: 17.8           # r < r_pivot: rfib < rfib_max + (r - r_pivot)
+  rfibtot:                  # remove r > r_min with rfibtot < rfibtot_min (bright-star fragments)
+    r_min: 12.0
+    rfibtot_min: 15.0
+  r_range: [13.0, 19.5]     # dereddened r, (min, max]
+
+redshift:
+  zspec_range: [0.001, 3.0]
+  zspec_exclude_surveys: [COSMOS2015]       # photometric "reference" redshifts in the pz files
+  photoz_priority: [Z_PHOT_MEAN_I, Z_PHOT_MEAN]
+
+randoms:
+  density_per_file: 2500    # deg^-2, checked against the DENSITY header keyword
+  chunk_rows: 5000000
+
+maps:
+  nsides: [32, 64, 128, 256]
+  # Template maps for sys_mapping (mean over the footprint randoms per RING pixel).
+  quantities: [GALDEPTH_G, GALDEPTH_R, GALDEPTH_I, GALDEPTH_Z, PSFDEPTH_W1, PSFSIZE_G, PSFSIZE_R,
+               PSFSIZE_I, PSFSIZE_Z, NOBS_G, NOBS_R, NOBS_I, NOBS_Z, EBV]
+  depth_as_mag: true        # depths as 5-sigma AB magnitudes instead of inverse variances
+  gaia_templates: [nstar_faint]   # full-sky Gaia star density maps linked from $LS11_GAIA_MAPS
+
+vlim:
+  n_rand_factor: 20         # randoms per galaxy (capped by the randoms available)
+  completeness_percentile: 95
+  mstar:
+    thresholds: [9.0, 9.5, 10.0, 10.25, 10.5, 10.75, 11.0, 11.25, 11.5]
+    max: 12.0
+    z_min: 0.05
+    z_cap: 0.35
+  absmag_r:
+    thresholds: [-18.0, -18.5, -19.0, -19.5, -20.0, -20.5, -21.0, -21.5, -22.0, -22.5]
+    bright: -25.0
+    z_min: 0.02
+    z_cap: 0.35

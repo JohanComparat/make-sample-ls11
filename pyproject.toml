@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "make-sample-ls11"
+version = "0.1.0"
+description = "Legacy Surveys DR11 BGS-like magnitude- and volume-limited galaxy samples and randoms"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Johan Comparat", email = "johan.comparat@pm.me" }]
+dependencies = ["numpy", "scipy", "astropy", "fitsio", "healpy", "pyyaml"]
+
+[project.optional-dependencies]
+sed = ["kcorrect>=5.1", "lephare>=1.0", "dsps", "eazy", "pcigale"]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["ls11samples*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
