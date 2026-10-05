@@ -20,8 +20,11 @@ import numpy as np
 from . import bits
 from .photometry import mag
 
+#: Cuts applied to galaxies and randoms alike.
 FOOTPRINT_CUTS = ("nobs", "galdepth", "maskbits", "ebv", "south")
+#: Object-level cuts, galaxies only.
 GALAXY_CUTS = ("rmag", "type", "fitbits", "flux_ivar", "gaia", "colour", "quality", "fiber", "rfibtot")
+#: All cuts, in cut-flow and SEL_FLAGS bit order.
 CUTS = FOOTPRINT_CUTS + GALAXY_CUTS
 
 # ICRS -> Galactic rotation (Hipparcos / astropy), rows are the Galactic x, y, z axes.

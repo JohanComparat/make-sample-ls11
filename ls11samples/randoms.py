@@ -1,12 +1,17 @@
 """Step 2: randoms of the BGS-like footprint.
 
 The DR11 random files (desitarget, ``DENSITY`` per deg^2 each) are read in chunks; a random is kept
-when it lies in one of the processed sweep boxes and passes :func:`selection.footprint_mask`, the
+when it lies in one of the processed sweep boxes and passes :func:`~ls11samples.selection.footprint_mask`, the
 same function applied to the galaxies. Area = N_kept / (sum of the file densities).
+
+The random file records what it was made from (FPHASH, SWPHASH, RFILE<i>): :func:`stale_reason`
+tells step 2 to redo it when the footprint, the processed sweeps or the random files change, e.g.
+when sweeps downloaded since the last run have been selected.
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 from collections.abc import Sequence
@@ -98,6 +103,25 @@ def select_randoms(files: Sequence[str | Path], cfg: dict, boxes: BoxSet | None 
     for i, f in enumerate(files):
         header[f"RFILE{i}"] = Path(f).name
     return rand, header
+
+
+def sweeps_hash(sweeps: Sequence[str | Path]) -> str:
+    """Short hash of the sorted sweep file names (SWPHASH): the sweep boxes the randoms cover."""
+    text = "\n".join(sorted(Path(s).name for s in sweeps))
+    return hashlib.sha1(text.encode()).hexdigest()[:12]
+
+
+def stale_reason(header, fphash: str, sweeps: Sequence[str | Path], files: Sequence[str | Path]) -> str:
+    """Why a random file (its ``header``) no longer matches the footprint, sweeps and random files
+    of this run; empty when it is up to date. A file without SWPHASH is stale."""
+    if header.get("FPHASH") != fphash:
+        return f"footprint {header.get('FPHASH')} != {fphash}"
+    if header.get("SWPHASH") != sweeps_hash(sweeps):
+        return f"made from {header.get('NSWEEPS', '?')} other sweeps, not these {len(sweeps)}"
+    made = [header.get(f"RFILE{i}") for i in range(int(header.get("NRFILES", 0)))]
+    if made != [Path(f).name for f in files]:
+        return f"random files {made} != {[Path(f).name for f in files]}"
+    return ""
 
 
 def subsample(n_avail: int, n_want: int, rng: np.random.Generator) -> np.ndarray:

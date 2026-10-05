@@ -1,6 +1,6 @@
 """kcorrect v5 (Blanton & Roweis 2007) for the LS DR11 bands at fixed z = BEST_Z.
 
-:meth:`KcorrectV5.fit` returns per galaxy (NaN when not fitted):
+:meth:`KcorrectV5.fit` returns per galaxy (NaN when not fitted)::
 
   KCORR_<b>, ABSMAG_<b>   b = G, R, Z (DECam), K-corrected to the band shifted to ``band_shift``
                           (default 0: rest-frame DECam bands); ABSMAG = MAG - DM(z) - KCORR

@@ -208,7 +208,7 @@ def report(res, ref, data, sel, timing, zsens, dr10, outdir, figs) -> Path:
         lines += ["", "## Photo-z sensitivity", "",
                   "Refit of photo-z galaxies at BEST_Z ± BEST_Z_ERR: half the difference of the two "
                   "log M*, i.e. the mass error from the photo-z alone.", "",
-                  "| code | N | median ½|Δ log M*| | 84th pct |", "|---|---|---|---|"]
+                  "| code | N | median ½\\|Δ log M*\\| | 84th pct |", "|---|---|---|---|"]
         for c, v in zsens.items():
             lines.append(f"| {c} | {v['n']} | {v['med']:.3f} | {v['p84']:.3f} |")
     if dr10 is not None:

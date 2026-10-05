@@ -153,3 +153,8 @@ pytest
 
 Maintainer setup: on the laptop, use the shared `dev` env (`~/software/dev_env`). Do not create
 a new environment.
+
+## Documentation
+
+Sphinx sources in `docs/` (installation, configuration, every step, methods, file formats, API):
+`pip install -e .[docs]` then `make -C docs html`, and open `docs/_build/html/index.html`.

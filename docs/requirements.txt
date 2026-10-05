@@ -1,0 +1,8 @@
+# Documentation build (fitsio, healpy and the SED codes are mocked in conf.py)
+sphinx
+furo
+myst-parser
+sphinx-copybutton
+numpy
+astropy
+pyyaml

@@ -66,6 +66,24 @@ def test_boxset_grid_equals_loop(rng):
     assert np.array_equal(bs.contains(ra, dec), randoms.io.in_boxes(ra, dec, boxes))
 
 
+
+def test_random_file_freshness(tmp_path):
+    """Step 2 keeps a random file only for the same footprint, sweeps and random files."""
+    sweeps = [tmp_path / "11.0" / f"sweep-{r:03d}m005-{r + 5:03d}p000.fits" for r in (0, 5)]
+    rfiles = ["randoms-south-1-0.fits", "randoms-south-1-1.fits"]
+    hdr = {"FPHASH": "0123456789ab", "NSWEEPS": 2, "SWPHASH": randoms.sweeps_hash(sweeps), "NRFILES": 2,
+           "RFILE0": rfiles[0], "RFILE1": rfiles[1]}
+    path = randoms.io.write_table(tmp_path / "rand.fits", {"RA": np.zeros(3)}, header=hdr)
+    h = randoms.io.read_header(path, 1)
+    assert randoms.stale_reason(h, "0123456789ab", sweeps[::-1], rfiles) == ""      # order-free
+    assert randoms.sweeps_hash(sweeps) == randoms.sweeps_hash([s.name for s in sweeps])
+    more = sweeps + [tmp_path / "11.0" / "sweep-010m005-015p000.fits"]             # new download
+    assert "other sweeps" in randoms.stale_reason(h, "0123456789ab", more, rfiles)
+    assert "footprint" in randoms.stale_reason(h, "ba9876543210", sweeps, rfiles)
+    assert "random files" in randoms.stale_reason(h, "0123456789ab", sweeps, rfiles[:1])
+    old = {k: v for k, v in hdr.items() if k not in ("NSWEEPS", "SWPHASH")}       # made before SWPHASH
+    assert randoms.stale_reason(old, "0123456789ab", sweeps, rfiles)
+
 def test_cutflow_monotonic(cfg, first_sweep):
     t, flow, hdr = bgsl.select_sweep(first_sweep, cfg)
     assert np.all(np.diff(flow["N_PASS_CUMUL"]) <= 0)

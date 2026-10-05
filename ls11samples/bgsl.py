@@ -1,6 +1,6 @@
 """Step 1: one sweep -> selection file <ver>-<tag>/<sweep>-<tag>.fits (+ HDU CUTFLOW).
 
-Only the selected objects are written, with the minimum needed to find them again and to fit them:
+Only the selected objects are written, with the minimum needed to find them again and to fit them::
 
   LS_ID_DR11 (i8)   RELEASE<<42 | BRICKID<<22 | OBJID
   SWEEP_ROW  (i4)   row in the sweep (and in the row-matched photo-z file)

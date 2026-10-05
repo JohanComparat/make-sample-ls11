@@ -1,16 +1,16 @@
-"""Volume-limited sample files in the formats read by sys_mapping and sum_stat.
+"""Volume-limited sample files in the formats read by sys_mapping and sum_stat::
 
-<name>_DATA.fits    RA, DEC (f8), EBV, BEST_Z, BEST_Z_ERR, Z_SOURCE, STAR_FLAG, LS_ID_DR11,
-                    MAG_G/R/Z, MABS_R and KCORR_R (``vlim.mr_code``), LOGMSTAR (``sed.primary``),
-                    LOGMSTAR[_ERR]_<CODE> and MABS_R[_ERR]_<CODE> for every code run,
-                    LPH_MASS_BEST (= LOGMSTAR, the column sum_stat reads), WEIGHT_COMP (= 1;
-                    sys_mapping uses it when present)
-<name>_RAND.fits    RA, DEC (f8), EBV, Z (shuffled data redshifts)
-<name>_COLOUR.fits  G_MAG, Z_MAG (dereddened DECam AB), REDSHIFT (= BEST_Z), row-aligned with
-                    DATA (sum_stat colour classes); header PARENT, NMATCH, NMISS
+    <name>_DATA.fits    RA, DEC (f8), EBV, BEST_Z, BEST_Z_ERR, Z_SOURCE, STAR_FLAG, LS_ID_DR11,
+                        MAG_G/R/Z, MABS_R and KCORR_R (``vlim.mr_code``), LOGMSTAR (``sed.primary``),
+                        LOGMSTAR[_ERR]_<CODE> and MABS_R[_ERR]_<CODE> for every code run,
+                        LPH_MASS_BEST (= LOGMSTAR, the column sum_stat reads), WEIGHT_COMP (= 1;
+                        sys_mapping uses it when present)
+    <name>_RAND.fits    RA, DEC (f8), EBV, Z (shuffled data redshifts)
+    <name>_COLOUR.fits  G_MAG, Z_MAG (dereddened DECam AB), REDSHIFT (= BEST_Z), row-aligned with
+                        DATA (sum_stat colour classes); header PARENT, NMATCH, NMISS
 
 The name follows the DR10 convention with an LS11 prefix:
-LS11_VLIM_ANY_<lo>_<Mstar|Mr>_<hi>_<zmin>_z_<zmax>_N_<N:07d>.
+``LS11_VLIM_ANY_<lo>_<Mstar|Mr>_<hi>_<zmin>_z_<zmax>_N_<N:07d>``.
 """
 
 from __future__ import annotations

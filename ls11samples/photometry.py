@@ -31,7 +31,7 @@ def dereddened_flux(t: Mapping, band: str) -> tuple[np.ndarray, np.ndarray]:
 def flux_arrays(t: Mapping, bands: Sequence[str], err_floor_mag: Mapping[str, float] | None = None
                 ) -> tuple[np.ndarray, np.ndarray]:
     """(flux, flux_err) arrays of shape (n, nband), dereddened nanomaggies, with a fractional error
-    floor 0.4 ln10 * floor_mag * |flux| added in quadrature. Missing data (ivar <= 0) -> err = inf."""
+    floor ``0.4 ln10 * floor_mag * |flux|`` added in quadrature. Missing data (ivar <= 0) -> err = inf."""
     fl, er = [], []
     for b in bands:
         f, iv = dereddened_flux(t, b)

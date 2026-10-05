@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Step 2: footprint randoms ($LS11_OUT/<tag>/LS11_<tag>_RAND.fits: RA, DEC, EBV) and the
-footprint / systematics HEALPix maps, accumulated while the random files are read."""
+footprint / systematics HEALPix maps, accumulated while the random files are read. An existing
+random file is kept only if it was made from the same footprint, sweeps and random files."""
 
 import logging
 
@@ -26,15 +27,19 @@ def main():
         if io.read_header(paths.product(s, tag), 1)["FPHASH"] != fphash:
             raise SystemExit(f"{paths.product(s, tag).name} was made with another footprint; rerun step 1")
     out = paths.rand_file(tag)
-    if out.exists() and not args.overwrite:
-        log.info("%s exists; use --overwrite to redo it", out)
-        return
     rfiles = paths.random_files()
     if not rfiles:
         raise SystemExit(f"no random files for {paths.randoms_glob}")
+    if out.exists() and not args.overwrite:
+        stale = randoms.stale_reason(io.read_header(out, 1), fphash, sweeps, rfiles)
+        if not stale:
+            log.info("%s is up to date (%d sweeps); use --overwrite to redo it", out, len(sweeps))
+            return
+        log.info("%s is out of date (%s): redoing it", out, stale)
     boxes = randoms.BoxSet([io.sweep_box(s) for s in sweeps])
     acc = None if args.no_maps else MapAccumulator(cfg)
     rand, hdr = randoms.select_randoms(rfiles, cfg, boxes, maps=acc)
+    hdr.update(NSWEEPS=len(sweeps), SWPHASH=randoms.sweeps_hash(sweeps))
     io.write_table(out, rand, header=hdr, extname="RANDOMS")
     log.info("randoms: %d in footprint, area %.2f deg2 (sweep boxes %.2f deg2)", len(rand["RA"]), hdr["AREA"], boxes.area)
     if acc is not None:

@@ -10,7 +10,7 @@ import logging
 
 import numpy as np
 
-from ls11samples import catalog, cli, export, io, kcorr, vlim
+from ls11samples import catalog, cli, export, io, kcorr, randoms, vlim
 from ls11samples.config import config_hash
 from ls11samples.cosmo import distmod
 from ls11samples.sed.common import BANDS
@@ -55,6 +55,10 @@ def main():
     for c in (primary, mr_code):
         if c not in codes:
             raise SystemExit(f"{c} outputs missing for some sweeps: run step 4 first")
+    rhdr = dict(io.read_header(paths.rand_file(tag), 1))
+    if rhdr.get("SWPHASH") != randoms.sweeps_hash(sweeps):
+        raise SystemExit(f"{paths.rand_file(tag).name} was not made from these {len(sweeps)} sweeps "
+                         f"(it has {rhdr.get('NSWEEPS', '?')}): rerun step 2")
     data = catalog.load(paths, sweeps, tag, sweep_columns=["RA", "DEC", "EBV"], codes=codes,
                         mag_bands=["G", "R", "Z"])
     star = (np.asarray(data["STAR_FLAG"]).astype(int) & int(vc.get("exclude_star_flag", 2))) != 0
@@ -63,7 +67,6 @@ def main():
     data["LOGMSTAR"] = data[f"LOGMSTAR_{primary.upper()}"]
     data["MABS_R"] = data[f"MABS_R_{mr_code.upper()}"]
     data["KCORR_R"] = (data["MAG_R"] - distmod(data["BEST_Z"], cfg) - data["MABS_R"]).astype(np.float32)
-    rhdr = dict(io.read_header(paths.rand_file(tag), 1))
     area = float(rhdr["AREA"])
     r_lim = float(cfg["galaxy"]["r_range"][1])
     log.info("%d objects (%d stars left out), codes %s; M* from %s, Mr from %s", len(data["RA"]),

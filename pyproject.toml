@@ -14,6 +14,7 @@ dependencies = ["numpy", "scipy", "astropy", "fitsio", "healpy", "pyyaml"]
 [project.optional-dependencies]
 sed = ["kcorrect>=5.1", "lephare>=1.0", "dsps", "eazy", "pcigale"]
 test = ["pytest"]
+docs = ["sphinx", "furo", "myst-parser", "sphinx-copybutton"]
 
 [tool.setuptools.packages.find]
 include = ["ls11samples*"]

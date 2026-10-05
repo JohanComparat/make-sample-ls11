@@ -1,6 +1,6 @@
 """HEALPix maps from the footprint randoms: area fraction and sys_mapping templates.
 
-Layout under $LS11_OUT:
+Layout under $LS11_OUT/<tag>::
 
   footprint/LS11_FRACAREA_NSIDE_<nside:04d>.fits         fraction of each pixel in the footprint
   systematics/<nside:04d>/LS11_<Q>_NSIDE_<nside:04d>.fits  mean of Q over the footprint randoms
@@ -8,7 +8,7 @@ Layout under $LS11_OUT:
 
 All maps are RING-ordered, equatorial (COORDSYS='C'), one column named after the quantity, UNSEEN
 outside the footprint: the conventions of ~/data/legacysurvey/dr10/systematics read by sys_mapping
-(``load_templates_from_dir`` reads every *.fits of a systematics/<nside> directory).
+(``load_templates_from_dir`` reads every ``*.fits`` of a systematics/<nside> directory).
 """
 
 from __future__ import annotations

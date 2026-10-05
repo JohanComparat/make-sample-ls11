@@ -12,7 +12,9 @@ Completeness limits are measured from the data (no external calibration):
   percentile of it.
 
 Both curves are made monotonic (Mr_lim brightens, M*_lim grows with z); a threshold's z_max is
-where the curve crosses it, capped at ``z_cap``.
+where the curve crosses it, capped at ``z_cap``. The redshift range is rounded inwards to the 2
+decimals of the sample name (z_max down, z_min up), so the name gives exactly the range selected:
+sys_mapping reads it from the name.
 """
 
 from __future__ import annotations
@@ -95,9 +97,13 @@ def zmax_heavier(zc, mlim, threshold: float) -> float:
     return zmax_brighter(zc, -np.asarray(mlim), -threshold)
 
 
-def _floor3(z: float) -> float:
-    """z_max floored to 3 decimals (conservative), so the selection and the file name agree."""
-    return float(np.floor(z * 1000) / 1000) if np.isfinite(z) else np.nan
+def name_precision(z: float, up: bool = False) -> float:
+    """``z`` rounded down (``up``: up) to the 2 decimals of the sample names, so that the selection
+    and the name agree; NaN stays NaN."""
+    if not np.isfinite(z):
+        return np.nan
+    x = round(z * 100, 6)                         # 0.29 * 100 = 28.999999999999996
+    return float((np.ceil(x) if up else np.floor(x)) / 100)
 
 
 def sample_name(kind: str, lo: float, hi: float, z0: float, z1: float, n: int, prefix: str = "LS11") -> str:
@@ -120,23 +126,25 @@ def define_samples(data: Mapping, cfg: dict, r_lim: float, mr_curve=None) -> tup
         zc, ml = mr_curve if mr_curve is not None else mr_limit_curve(z, data["KCORR_R"], r_lim, cfg, pct)
         curves["Mr"] = (zc, ml)
         for thr in c["thresholds"]:
-            z1 = _floor3(min(zmax_brighter(zc, ml, thr), c["z_cap"]))
-            if not np.isfinite(z1) or z1 <= c["z_min"]:
+            z0 = name_precision(c["z_min"], up=True)
+            z1 = name_precision(min(zmax_brighter(zc, ml, thr), c["z_cap"]))
+            if not np.isfinite(z1) or z1 <= z0:
                 continue
             m = np.asarray(data["MABS_R"])
-            sel = (m <= thr) & (m > c["bright"]) & (z > c["z_min"]) & (z <= z1)
-            out.append({"kind": "Mr", "lo": c["bright"], "hi": thr, "z0": c["z_min"], "z1": z1, "sel": sel})
+            sel = (m <= thr) & (m > c["bright"]) & (z > z0) & (z <= z1)
+            out.append({"kind": "Mr", "lo": c["bright"], "hi": thr, "z0": z0, "z1": z1, "sel": sel})
     if "LOGMSTAR" in data:
         c = vc["mstar"]
         zc, ml = mstar_limit_curve(z, data["LOGMSTAR"], data["MAG_R"], r_lim, pct)
         curves["Mstar"] = (zc, ml)
         for thr in c["thresholds"]:
-            z1 = _floor3(min(zmax_heavier(zc, ml, thr), c["z_cap"]))
-            if not np.isfinite(z1) or z1 <= c["z_min"]:
+            z0 = name_precision(c["z_min"], up=True)
+            z1 = name_precision(min(zmax_heavier(zc, ml, thr), c["z_cap"]))
+            if not np.isfinite(z1) or z1 <= z0:
                 continue
             m = np.asarray(data["LOGMSTAR"])
-            sel = (m >= thr) & (m < c["max"]) & (z > c["z_min"]) & (z <= z1)
-            out.append({"kind": "Mstar", "lo": thr, "hi": c["max"], "z0": c["z_min"], "z1": z1, "sel": sel})
+            sel = (m >= thr) & (m < c["max"]) & (z > z0) & (z <= z1)
+            out.append({"kind": "Mstar", "lo": thr, "hi": c["max"], "z0": z0, "z1": z1, "sel": sel})
     for s in out:
         s["n"] = int(s["sel"].sum())
         s["name"] = sample_name(s["kind"], s["lo"], s["hi"], s["z0"], s["z1"], s["n"])

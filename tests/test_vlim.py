@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import pytest
 
@@ -62,3 +64,17 @@ def test_define_and_write_samples(cfg, rng, tmp_path):
     assert np.array_equal(col["REDSHIFT"], dt["BEST_Z"].astype(np.float32))
     row = vlim.summary_row(s, d, 25.0, cfg)
     assert row["VOLUME"] == pytest.approx(shell_volume(s["z0"], s["z1"], 25.0, cfg))
+
+
+def test_sample_name_matches_selection(cfg, rng):
+    """The redshift range is rounded inwards to the 2 decimals of the name (sys_mapping reads it)."""
+    c = copy.deepcopy(cfg)
+    c["vlim"]["absmag_r"].update(thresholds=[-20.52], z_min=0.025)
+    zc, ml = np.array([0.15, 0.2]), np.array([-20.0, -21.0])
+    assert vlim.zmax_brighter(zc, ml, -20.52) == pytest.approx(0.176)
+    d = {"BEST_Z": rng.uniform(0, 0.3, 20000), "MABS_R": rng.uniform(-23, -18, 20000)}
+    (s,), _ = vlim.define_samples(d, c, 19.5, mr_curve=(zc, ml))
+    assert (s["z0"], s["z1"]) == (0.03, 0.17) and "_0.03_z_0.17_N_" in s["name"]
+    z = d["BEST_Z"][s["sel"]]
+    assert z.min() > 0.03 and z.max() <= 0.17
+    assert [vlim.name_precision(x) for x in (0.29, 0.35, 0.57)] == [0.29, 0.35, 0.57]  # float guard

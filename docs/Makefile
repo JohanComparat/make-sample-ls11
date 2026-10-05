@@ -1,0 +1,17 @@
+# Build the documentation:  make -C docs html   (O=-W: warnings as errors)
+SPHINXOPTS  ?=
+SPHINXBUILD ?= sphinx-build
+SOURCEDIR   = .
+BUILDDIR    = _build
+
+.PHONY: help html clean
+
+help:
+	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+
+html:
+	$(SPHINXBUILD) -b html "$(SOURCEDIR)" "$(BUILDDIR)/html" $(SPHINXOPTS) $(O)
+	@echo "Build finished. Open $(BUILDDIR)/html/index.html"
+
+clean:
+	rm -rf $(BUILDDIR)

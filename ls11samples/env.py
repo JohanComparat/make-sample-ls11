@@ -1,19 +1,22 @@
 """Paths, all from environment variables (laptop defaults; set them on CC-IN2P3).
 
-LS11_DIR        Legacy Surveys DR11 root                 [~/data/legacysurvey/dr11]
-LS11_REGION     south | north                             [south]
-LS11_SWEEP_VER  sweep version directory                  [11.0]
-LS11_SWEEPS     optional glob restricting the sweeps      [sweep-*.fits]
-LS11_SWEEP_OUT  root of the per-sweep products           [$LS11_DIR/$LS11_REGION/sweep]
-                (<root>/<ver>-<name>/<sweep>-<name>.fits, next to <ver>/ and <ver>-photo-z/)
-LS11_RANDOMS    glob of random files (relative to $LS11_DIR/$LS11_REGION/randoms, or absolute)
-                                                          [randoms-$LS11_REGION-1-0.fits]
-LS11_OUT        root of the per-run products (randoms, maps, samples, logs): <root>/<tag>/
-                                                          [$LS11_DIR/$LS11_REGION]
-LS11_CONFIG     selection configuration                   [config/default.yaml of this repo]
-LS11_GAIA_MAPS  directory of full-sky Gaia star-density maps (<nside:04d>/GAIA_*.fits)
-                                                          [~/data/legacysurvey/dr10/systematics]
-LS11_NPROC      worker processes                          [min(8, cpu count)]
+Variables, with their default in brackets::
+
+    LS11_DIR        Legacy Surveys DR11 root                 [~/data/legacysurvey/dr11]
+    LS11_REGION     south | north                             [south]
+    LS11_SWEEP_VER  sweep version directory                  [11.0]
+    LS11_SWEEPS     optional glob restricting the sweeps      [sweep-*.fits]
+    LS11_SWEEP_LIST optional file of sweep names, one per line (frozen list of a submission)
+    LS11_SWEEP_OUT  root of the per-sweep products           [$LS11_DIR/$LS11_REGION/sweep]
+                    (<root>/<ver>-<name>/<sweep>-<name>.fits, next to <ver>/ and <ver>-photo-z/)
+    LS11_RANDOMS    glob of random files (relative to $LS11_DIR/$LS11_REGION/randoms, or absolute)
+                                                              [randoms-$LS11_REGION-1-0.fits]
+    LS11_OUT        root of the per-run products (randoms, maps, samples, logs): <root>/<tag>/
+                                                              [$LS11_DIR/$LS11_REGION]
+    LS11_CONFIG     selection configuration                   [config/default.yaml of this repo]
+    LS11_GAIA_MAPS  directory of full-sky Gaia star-density maps (<nside:04d>/GAIA_*.fits)
+                                                              [~/data/legacysurvey/dr10/systematics]
+    LS11_NPROC      worker processes                          [min(8, cpu count)]
 """
 
 from __future__ import annotations

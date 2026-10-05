@@ -32,6 +32,7 @@ SSP_FILE = "ssp_data_fsps_v3.2_lgmet_age.h5"
 KROUPA_TO_CHABRIER = -0.034
 Z_SUN = 0.0142
 
+#: Model grid; ``sed.dsps.grid`` overrides it.
 DEFAULT_GRID = {"tau_gyr": [0.3, 0.6, 1.0, 2.0, 4.0, 8.0],
                 "age_gyr": [0.5, 1.0, 2.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0],
                 "z_over_zsun": [0.2, 0.5, 1.0, 1.6],
