@@ -6,8 +6,9 @@ z = BEST_Z, for every code of ``sed.codes``:
     SWEEP_ROW (i4), LOGMSTAR, LOGMSTAR_ERR, MABS_R, MABS_R_ERR (f4)
 
 row-aligned with the selection file <ver>-<tag>/<sweep>-<tag>.fits; the photometry is read from the
-sweep at SWEEP_ROW. --prepare only builds what the codes need once (LePhare libraries, CIGALE
-filters): run it before the job arrays so that parallel tasks never build the same files.
+sweep at SWEEP_ROW. --fetch downloads what the codes need (LePhare auxiliary data, CIGALE filters;
+on a node with internet access); --prepare also builds the LePhare libraries. Run them once before
+the job arrays so that parallel tasks never build the same files.
 """
 
 import logging
@@ -66,15 +67,17 @@ def main():
     cli.add_slicing(p)
     p.add_argument("--code", default=None, help="comma-separated codes (default: sed.codes in the config)")
     p.add_argument("--chunk", type=int, default=20000)
-    p.add_argument("--prepare", action="store_true", help="only build the code libraries / filters")
+    p.add_argument("--prepare", action="store_true", help="only fetch data and build the code libraries")
+    p.add_argument("--fetch", action="store_true", help="only fetch the code data (no library build)")
     args = p.parse_args()
     cfg, paths, _ = cli.setup(args)
     codes = args.code.split(",") if args.code else list(cfg["sed"]["codes"])
     sweeps = [s for s in cli.my_part(paths.sweeps(), args.part, args.nparts)
               if paths.product(s, cfg["tag"]).exists()]
     for code in codes:
-        backend = get_backend(code)(cfg)          # builds / checks libraries once per process
-        if args.prepare:
+        kw = {"build": False} if (args.fetch and code == "lephare") else {}
+        backend = get_backend(code)(cfg, **kw)    # builds / checks libraries once per process
+        if args.prepare or args.fetch:
             log.info("%s ready", code)
             continue
         paths.product_dir(code).mkdir(parents=True, exist_ok=True)

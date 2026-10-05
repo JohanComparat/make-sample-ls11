@@ -25,7 +25,7 @@ PARA_OUT = PARA.with_name("output_ls11.para")
 class LephareBackend:
     name = "lephare"
 
-    def __init__(self, cfg: dict, para: str | Path | None = None, rebuild: bool = False):
+    def __init__(self, cfg: dict, para: str | Path | None = None, rebuild: bool = False, build: bool = True):
         import lephare as lp
 
         self.lp = lp
@@ -39,7 +39,7 @@ class LephareBackend:
         work = Path(os.environ["LEPHAREWORK"])
         # the .doc file is written last: an empty one means an interrupted build
         doc = work / "lib_mag" / f"{self.config['GAL_LIB_OUT'].value}.doc"
-        if rebuild or not doc.exists() or doc.stat().st_size == 0:
+        if build and (rebuild or not doc.exists() or doc.stat().st_size == 0):
             log.info("building the LePhare libraries in %s", work)
             lp.prepare(self.config)
 

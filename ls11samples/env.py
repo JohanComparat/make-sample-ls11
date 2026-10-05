@@ -56,7 +56,12 @@ class Paths:
         return self.region_dir / "sweep" / f"{self.sweep_ver}-photo-z"
 
     def sweeps(self) -> list[Path]:
-        return sorted(self.sweep_dir.glob(self.sweep_glob))
+        """Sweeps matching LS11_SWEEPS that have their photo-z file (downloads may be in progress)."""
+        out = []
+        for s in sorted(self.sweep_dir.glob(self.sweep_glob)):
+            if (self.pz_dir / s.name.replace(".fits", "-pz.fits")).exists():
+                out.append(s)
+        return out
 
     def random_files(self) -> list[Path]:
         pattern = self.randoms_glob
