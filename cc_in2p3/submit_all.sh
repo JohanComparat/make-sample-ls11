@@ -16,12 +16,20 @@ SB="sbatch --parsable -p htc -L sps"
 JOB="$LS11_REPO/cc_in2p3/job_step.sh"
 ARR="--array=0-$((NARRAY - 1))"
 has() { [[ " $STEPS " == *" $1 "* ]]; }
+# Freeze the sweep list now (downloads may still add sweeps): every task processes the same list.
+if [[ -z "${LS11_SWEEP_LIST:-}" ]]; then
+  export LS11_SWEEP_LIST="$LOGS/sweeps_$(date +%Y%m%dT%H%M%S).txt"
+  ( cd "$LS11_DIR/$LS11_REGION/sweep/$LS11_SWEEP_VER" && for f in sweep-*.fits; do
+      [[ -f "../$LS11_SWEEP_VER-photo-z/${f%.fits}-pz.fits" ]] && echo "$f"; done ) > "$LS11_SWEEP_LIST"
+fi
+echo "sweep list: $LS11_SWEEP_LIST ($(wc -l < "$LS11_SWEEP_LIST") sweeps)"
 dep() { local d=""; for j in "$@"; do [[ -n "$j" ]] && d="$d:$j"; done; [[ -n "$d" ]] && echo "--dependency=afterok$d"; }
 
 j1=""; j2=""; jp=""; jf=""
 has select && j1=$($SB -J ls11_select $ARR -t 0-02:00 -c 4 --mem 16G -o "$LOGS/select_%A_%a.log" "$JOB" 01_select.py)
 has randoms && j2=$($SB -J ls11_randoms $(dep $j1) -t 1-00:00 -c 4 --mem 32G -o "$LOGS/randoms_%j.log" "$JOB" 02_randoms.py)
-has prepare && jp=$($SB -J ls11_prepare -t 0-06:00 -c 16 --mem 32G -o "$LOGS/prepare_%j.log" "$JOB" 04_stellar_mass.py --prepare --code "${CODES// /,}")
+jp=${PREPARE_JOB:-}                            # reuse a running prepare job instead of a new one
+[[ -z "$jp" ]] && has prepare && jp=$($SB -J ls11_prepare -t 0-06:00 -c 16 --mem 32G -o "$LOGS/prepare_%j.log" "$JOB" 04_stellar_mass.py --prepare --code "${CODES// /,}")
 if has fit; then
   for code in $CODES; do
     case $code in

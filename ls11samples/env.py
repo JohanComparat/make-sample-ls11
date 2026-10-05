@@ -56,9 +56,17 @@ class Paths:
         return self.region_dir / "sweep" / f"{self.sweep_ver}-photo-z"
 
     def sweeps(self) -> list[Path]:
-        """Sweeps matching LS11_SWEEPS that have their photo-z file (downloads may be in progress)."""
+        """Sweeps matching LS11_SWEEPS that have their photo-z file (downloads may be in progress).
+        When LS11_SWEEP_LIST names a file (one sweep file name per line, written at submission by
+        cc_in2p3/submit_all.sh), only those sweeps: every array task then sees the same list."""
+        names = None
+        listfile = os.environ.get("LS11_SWEEP_LIST")
+        if listfile:
+            names = {line.strip() for line in open(listfile) if line.strip()}
         out = []
         for s in sorted(self.sweep_dir.glob(self.sweep_glob)):
+            if names is not None and s.name not in names:
+                continue
             if (self.pz_dir / s.name.replace(".fits", "-pz.fits")).exists():
                 out.append(s)
         return out

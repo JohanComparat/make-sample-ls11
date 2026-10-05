@@ -6,6 +6,7 @@ Tables are plain ``dict[str, np.ndarray]`` in native byte order (fast to slice a
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
@@ -148,7 +149,7 @@ def write_table(path: str | Path, table: Mapping[str, np.ndarray], header: Mappi
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".part")
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.part")     # unique per process
     if tmp.exists():
         tmp.unlink()
     hdr = [{"name": k, "value": v} for k, v in (header or {}).items()]
