@@ -59,7 +59,7 @@ def write_sample(outdir: Path, sample: dict, data: Mapping, rand: Mapping, heade
     r = io.write_table(outdir / f"{name}_RAND.fits", rand, header={**hdr, "NRAND": len(rand["RA"])},
                        extname="RAND")
     c = io.write_table(outdir / f"{name}_COLOUR.fits", colour_table(data, sel),
-                       header={"PARENT": header.get("PARENT", "LS11_BGSl_DATA.fits"),
+                       header={"PARENT": header.get("PARENT", ""),
                                "NMATCH": sample["n"], "NMISS": 0}, extname="COLOUR")
     return [d, r, c]
 

@@ -103,10 +103,10 @@ configuration is ``null`` or empty passes everything.
        fragments
      - ``galaxy.rfibtot``
 
-The selected sample is the set of objects passing every footprint and galaxy cut.
-:func:`ls11samples.selection.sel_flags` can encode the result as a bit mask, ``SEL_FLAGS``, with
-bit *i* set when cut ``CUTS[i]`` fails. The order of :data:`ls11samples.selection.CUTS` is the one
-of the two tables above. Only the selected objects are written to the selection file.
+The selected sample is the set of objects passing every footprint and galaxy cut. The cut-flow
+(HDU ``CUTFLOW`` of the selection file, :func:`ls11samples.selection.cutflow`) counts the objects
+cut by cut, in the order of :data:`ls11samples.selection.CUTS`, the one of the two tables above.
+Only the selected objects are written to the selection file.
 
 For speed, step 1 first reads ``FLUX_R`` and ``MW_TRANSMISSION_R`` of every row and keeps the
 ``r_range`` rows. Only for those rows does it read the other columns.

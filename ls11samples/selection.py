@@ -8,7 +8,8 @@ Two kinds of cuts, both configured in ``config/default.yaml``:
 * galaxy cuts (:func:`galaxy_cuts`): TYPE, FITBITS, flux ivar, Gaia star rejection, colours,
   DESI BGS quality and fibre-magnitude cuts and the r-band range.
 
-Each cut gets one bit of SEL_FLAGS (names in :data:`CUTS`); SEL_FLAGS == 0 is the BGS-like sample.
+The selected sample passes every cut; :func:`cutflow` counts the objects cut by cut, in the order
+of :data:`CUTS`.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from .photometry import mag
 FOOTPRINT_CUTS = ("nobs", "galdepth", "maskbits", "ebv", "south")
 #: Object-level cuts, galaxies only.
 GALAXY_CUTS = ("rmag", "type", "fitbits", "flux_ivar", "gaia", "colour", "quality", "fiber", "rfibtot")
-#: All cuts, in cut-flow and SEL_FLAGS bit order.
+#: All cuts, in cut-flow order.
 CUTS = FOOTPRINT_CUTS + GALAXY_CUTS
 
 # ICRS -> Galactic rotation (Hipparcos / astropy), rows are the Galactic x, y, z axes.
@@ -107,10 +108,6 @@ def galaxy_columns(cfg: dict) -> list[str]:
     return list(dict.fromkeys(cols))
 
 
-def r_mag(t: Mapping) -> np.ndarray:
-    return mag(t["FLUX_R"], t["MW_TRANSMISSION_R"])
-
-
 def galaxy_cuts(t: Mapping, cfg: dict) -> dict[str, np.ndarray]:
     """{cut name: pass} for the object-level cuts (dereddened magnitudes). A cut whose configuration
     is null or empty is switched off (all pass), e.g. in config/bgs_r21_dr10bits.yaml."""
@@ -180,20 +177,6 @@ def star_flag(t: Mapping, gaia_cut: float = 0.6) -> np.ndarray:
         star = (g > 0) & (g - mag(t["FLUX_R"]) <= gaia_cut)
     flag |= np.where(star, STAR_GAIA, 0).astype(np.uint8)
     return flag
-
-
-def sel_flags(cuts: Mapping[str, np.ndarray]) -> np.ndarray:
-    """SEL_FLAGS: bit i set when cut CUTS[i] fails."""
-    n = len(next(iter(cuts.values())))
-    flags = np.zeros(n, np.int32)
-    for i, name in enumerate(CUTS):
-        if name in cuts:
-            flags |= np.where(cuts[name], 0, 1 << i).astype(np.int32)
-    return flags
-
-
-def sel_header() -> dict:
-    return {f"SELBIT{i}": name for i, name in enumerate(CUTS)}
 
 
 def cutflow(cuts: Mapping[str, np.ndarray], n_total: int | None = None) -> dict[str, np.ndarray]:

@@ -30,25 +30,6 @@ def pixel_index(ra, dec, nside: int) -> np.ndarray:
     return hp.ang2pix(nside, np.asarray(ra), np.asarray(dec), lonlat=True)  # RING
 
 
-def mean_map(pix: np.ndarray, values: np.ndarray, nside: int) -> np.ndarray:
-    npix = hp.nside2npix(nside)
-    good = np.isfinite(values)
-    cnt = np.bincount(pix[good], minlength=npix)
-    s = np.bincount(pix[good], weights=values[good], minlength=npix)
-    out = np.full(npix, hp.UNSEEN)
-    out[cnt > 0] = s[cnt > 0] / cnt[cnt > 0]
-    return out
-
-
-def fracarea_map(pix: np.ndarray, nside: int, density: float) -> np.ndarray:
-    npix = hp.nside2npix(nside)
-    cnt = np.bincount(pix, minlength=npix).astype(float)
-    expected = density * hp.nside2pixarea(nside, degrees=True)
-    out = np.full(npix, hp.UNSEEN)
-    out[cnt > 0] = cnt[cnt > 0] / expected
-    return out
-
-
 def write_map(path: Path, m: np.ndarray, column: str, extra_header: Mapping | None = None) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     hp.write_map(str(path), m, nest=False, coord="C", column_names=[column], dtype=np.float64,

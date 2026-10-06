@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from astropy.coordinates import SkyCoord
 
-from ls11samples import bgsl, randoms, redshift, selection
+from ls11samples import bgsl, io, randoms, redshift, selection
 
 
 def test_galactic_b_matches_astropy(rng):
@@ -29,8 +29,7 @@ def test_footprint_same_for_galaxies_and_randoms(cfg, rng):
     t = _footprint_table(5000, rng)
     t["FITBITS"] = np.zeros(5000, np.int16)
     cuts = selection.footprint_cuts(t, cfg, fitbits=t["FITBITS"])
-    flags = selection.sel_flags(cuts)
-    assert np.array_equal(flags == 0, selection.footprint_mask(t, cfg))
+    assert np.array_equal(np.logical_and.reduce(list(cuts.values())), selection.footprint_mask(t, cfg))
     # SUB_BLOB (16) is not rejected, BRIGHT / MEDIUM / GALAXY / CLUSTER are
     mb = t["MASKBITS"]
     assert not cuts["maskbits"][np.isin(mb, [2, 2048, 4096, 8192])].any()
@@ -94,13 +93,19 @@ def test_cutflow_monotonic(cfg, first_sweep):
     assert hdr["FPHASH"] and "BRIGHT(1)" in hdr["MASKREJ"]
 
 
-def test_fracarea_uniform(rng):
+def test_fracarea_uniform(rng, cfg, tmp_path):
+    import healpy as hp
+
     from ls11samples import maps
+
     n = 400_000
-    ra = rng.uniform(0, 360, n)
-    dec = np.degrees(np.arcsin(rng.uniform(-1, 1, n)))
-    dens = n / 41252.96
-    m = maps.fracarea_map(maps.pixel_index(ra, dec, 8), 8, dens)
+    r = {"RA": rng.uniform(0, 360, n), "DEC": np.degrees(np.arcsin(rng.uniform(-1, 1, n)))}
+    cfg["maps"]["nsides"], cfg["maps"]["quantities"] = [8], []
+    acc = maps.MapAccumulator(cfg)
+    acc.add(io.take(r, slice(0, n // 2)))                  # filled chunk by chunk
+    acc.add(io.take(r, slice(n // 2, n)))
+    acc.write(tmp_path, n / 41252.96)
+    m = hp.read_map(str(tmp_path / "footprint" / "LS11_FRACAREA_NSIDE_0008.fits"))
     assert m.mean() == pytest.approx(1, abs=0.01)
 
 
