@@ -33,7 +33,8 @@ def select_sweep(sweep: str | Path, cfg: dict) -> tuple[dict, dict, dict]:
     """(selection table, cut-flow table, header) of one sweep."""
     t0 = time.time()
     sweep = Path(sweep)
-    bits.check_header(io.read_header(sweep, 0))
+    bits.check_header(io.read_header(sweep, 0),
+                      used={"MBIT": selection.maskbits_reject(cfg), "FBIT": cfg["galaxy"].get("fitbits_reject") or []})
     n_all = io.nrows(sweep)
     r_min, r_max = cfg["galaxy"]["r_range"]
 

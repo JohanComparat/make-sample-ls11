@@ -16,6 +16,16 @@ def test_check_header_ok_and_mismatch():
     wrong[12], wrong[13] = "CLUSTER", "GALAXY"
     with pytest.raises(ValueError, match="MBIT"):
         bits.check_header(_header(mb=wrong))
+    extra = {**bits.MASKBITS, 20: "NEW_BIT"}
+    with pytest.raises(ValueError, match="differ"):
+        bits.check_header(_header(mb=extra))
+
+
+def test_check_header_missing_bits():
+    no19 = {k: v for k, v in bits.MASKBITS.items() if k != 19}       # as in 2 DR11 south sweeps
+    bits.check_header(_header(mb=no19), used={"MBIT": ["BRIGHT", "GALAXY"]})
+    with pytest.raises(ValueError, match="used by the cuts"):
+        bits.check_header(_header(mb=no19), used={"MBIT": ["WISE_GAIA"]})
 
 
 def test_mask_value():

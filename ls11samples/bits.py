@@ -7,11 +7,14 @@ The randoms carry the same MASKBITS (their header has no bit list, so the sweep 
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Mapping
 
 import numpy as np
 
 #: DR11 MASKBITS, ``{bit: name}``.
+log = logging.getLogger(__name__)
+
 MASKBITS = {
     0: "NPRIMARY", 1: "BRIGHT", 2: "SATUR_G", 3: "SATUR_R", 4: "SATUR_Z", 5: "ALLMASK_G",
     6: "ALLMASK_R", 7: "ALLMASK_Z", 8: "WISEM1", 9: "WISEM2", 10: "BAILOUT", 11: "MEDIUM",
@@ -38,15 +41,29 @@ def header_bits(header: Mapping, prefix: str) -> dict[int, str]:
     return out
 
 
-def check_header(header: Mapping) -> None:
-    """Raise if the sweep header bit definitions differ from :data:`MASKBITS` / :data:`FITBITS`."""
+def check_header(header: Mapping, used: Mapping[str, Iterable[str]] | None = None) -> None:
+    """Check the sweep header bit definitions against :data:`MASKBITS` / :data:`FITBITS`.
+
+    Raises if a bit is defined with another name, if the header defines an unknown bit, or if a
+    bit named in ``used`` (``{"MBIT": maskbit names, "FBIT": fitbit names}``, the bits the cuts
+    rely on) is not defined. A missing definition of an unused bit is only logged: 2 of the 1600
+    DR11 south sweeps (e.g. sweep-295p010-300p015) do not document MBIT_19 (WISE_GAIA).
+    """
+    used = used or {}
     for prefix, ref in (("MBIT", MASKBITS), ("FBIT", FITBITS)):
         got = header_bits(header, prefix)
         if not got:
             raise ValueError(f"no {prefix}_n keywords in the sweep header")
-        if got != ref:
-            diff = {b: (got.get(b), ref.get(b)) for b in set(got) | set(ref) if got.get(b) != ref.get(b)}
-            raise ValueError(f"{prefix} definitions differ from DR11 (file, expected): {diff}")
+        wrong = {b: (got[b], ref.get(b)) for b in got if got[b] != ref.get(b)}
+        if wrong:
+            raise ValueError(f"{prefix} definitions differ from DR11 (file, expected): {wrong}")
+        missing = {b: ref[b] for b in ref if b not in got}
+        needed = {ref_name for ref_name in used.get(prefix, [])}
+        if needed & set(missing.values()):
+            raise ValueError(f"{prefix} bits used by the cuts are not defined in the header: "
+                             f"{sorted(needed & set(missing.values()))}")
+        if missing:
+            log.warning("%s bits not documented in the header (unused): %s", prefix, missing)
 
 
 def mask_value(names: Iterable[str], table: Mapping[str, int]) -> np.int64:
