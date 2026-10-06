@@ -17,6 +17,7 @@ Positions and photometry are never copied; they are read back from the sweep at 
 | 4 | `scripts/04_stellar_mass.py` | `11.0-<code>/<sweep>-<code>.fits` for code = lephare, cigale, kcorrect: `SWEEP_ROW`, `LOGMSTAR`, `LOGMSTAR_ERR`, `MABS_R`, `MABS_R_ERR` (20 B/row), row-aligned with the selection |
 | 5 | `scripts/05_vlim.py` | `<LS11_OUT>/<tag>/vlim/`: Mr and M* volume-limited samples + randoms |
 | 6 | `scripts/06_export.py` | `sys_mapping` / `sum_stat` format checks + manifest |
+| check | `scripts/validate_run.py` | completeness and row alignment of every per-sweep product, missing values, mass / Mr distributions and errors per code, agreement with `sed.primary`, randoms, disk use → `<LS11_OUT>/<tag>/validation.yaml` (exit 1 if a file is missing or misaligned) |
 
 `scripts/run_all.sh` runs the steps in order. `cc_in2p3/submit_all.sh` submits them on CC-IN2P3
 as Slurm job arrays with dependencies. Steps 1 and 4 run per sweep, one array task per group of

@@ -39,3 +39,25 @@ def test_catalog_joins_and_checks_alignment(monkeypatch, tmp_path):
                                                                             for k in catalog.CODE_COLUMNS}})
     with pytest.raises(ValueError, match="row-aligned"):
         catalog.load(p, [sweep], "sel", codes=["cigale"])
+
+
+def test_validate_counts_and_alignment(monkeypatch, tmp_path):
+    from ls11samples.config import load_config, DEFAULT
+    from ls11samples.validate import validate
+
+    monkeypatch.setenv("LS11_DIR", str(tmp_path))
+    cfg = load_config(DEFAULT.parent / "bgs_r21_dr10bits.yaml")
+    p = get_paths()
+    sweep = p.sweep_dir / "sweep-000m005-005p000.fits"
+    rows = np.arange(6, dtype=np.int32)
+    io.write_table(p.product(sweep, cfg["tag"]), {"LS_ID_DR11": rows.astype(np.int64), "SWEEP_ROW": rows,
+                                                  "BEST_Z": np.array([0.1, 0.2, 0.3, 1.5, 0.2, 0.4], np.float32),
+                                                  "STAR_FLAG": np.array([0, 0, 0, 0, 3, 0], np.uint8)},
+                   header={"NSEL": 6})
+    vals = {k: np.array([10, np.nan, 10.5, np.nan, 9, 11], np.float32) for k in catalog.CODE_COLUMNS}
+    io.write_table(p.product(sweep, "lephare"), {"SWEEP_ROW": rows, **vals})
+    io.write_table(p.product(sweep, "kcorrect"), {"SWEEP_ROW": rows[::-1], **vals})   # misaligned
+    out = validate(p, cfg, [sweep], frac=1.0)
+    assert out["n_objects"] == 6 and out["n_galaxies"] == 4             # z>=1 and STAR_FLAG=3 excluded
+    assert out["missing"] == [["cigale", sweep.name]] and out["misaligned"] == [["kcorrect", sweep.name]]
+    assert out["nan_fraction"]["lephare"] == {"all": 2 / 6, "galaxies": 1 / 4}
