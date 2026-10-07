@@ -1,10 +1,12 @@
 # make-sample-ls11
 
+[![Documentation Status](https://readthedocs.org/projects/make-sample-ls11/badge/?version=latest)](https://make-sample-ls11.readthedocs.io/en/latest/)
+
 Volume-limited galaxy samples and matching randoms from the Legacy Surveys DR11
 (<https://www.legacysurvey.org/>), for clustering (`sum_stat`) and imaging systematics
 (`sys_mapping`). It succeeds the DR10 BGS-like / `LS10_VLIM_*` samples.
 
-Documentation: <https://make-sample-ls11.readthedocs.io>
+Documentation: <https://make-sample-ls11.readthedocs.io/en/latest/>
 
 ## Pipeline
 
