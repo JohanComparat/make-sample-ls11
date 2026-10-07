@@ -14,3 +14,4 @@ The package is ``ls11samples``. Tables are plain ``dict[str, numpy.ndarray]`` th
    randoms_maps
    sed
    vlim
+   validate

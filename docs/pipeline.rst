@@ -13,6 +13,7 @@ Quick start
    python scripts/04_stellar_mass.py           # M*, Mr for every code of sed.codes
    python scripts/05_vlim.py                   # volume-limited samples
    python scripts/06_export.py                 # format checks + manifest
+   python scripts/validate_run.py              # completeness and sanity of the whole run
 
 ``scripts/run_all.sh [options]`` runs the same sequence. Its options are passed to steps 1–5. It
 uses the Python interpreter given by ``PY``; the default is the ``dev-full`` environment, which
@@ -174,6 +175,29 @@ Using the samples downstream:
        --data-file <name>_DATA.fits --rand-file <name>_RAND.fits
 
 ``sum_stat`` reads ``BEST_Z``, ``LPH_MASS_BEST`` and ``RAND.Z``.
+
+Validating a run
+----------------
+
+``scripts/validate_run.py`` (:func:`ls11samples.validate.validate`) checks a whole run made with
+the current configuration, over the same sweeps as the jobs (``LS11_SWEEP_LIST`` when it is set):
+
+* every sweep has its selection file and one file per code of ``sed.codes``, each row-aligned
+  with the selection (same ``SWEEP_ROW``);
+* the fraction of missing values (NaN) per code, over all objects and over the galaxies,
+  i.e. ``STAR_FLAG & vlim.exclude_star_flag == 0`` and ``BEST_Z`` inside the redshift range of
+  the SED grids;
+* the 5th, 50th and 95th percentiles of ``LOGMSTAR``, ``LOGMSTAR_ERR``, ``MABS_R`` and
+  ``MABS_R_ERR`` per code, on a random subsample of the galaxies (``--frac``, default 2%);
+* the median offset and NMAD of each code against ``sed.primary`` (``--ref``);
+* the randoms (number, area, sweeps) and the disk use of every product folder.
+
+It prints a report, writes ``<LS11_OUT>/<tag>/validation.yaml`` and exits with status 1 when a
+file is missing or misaligned.
+
+.. code-block:: bash
+
+   LS11_CONFIG=config/bgs_r21_dr10bits.yaml python scripts/validate_run.py
 
 Logging
 -------
