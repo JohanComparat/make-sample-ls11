@@ -73,7 +73,7 @@ def read_table(path: str | Path, columns: Sequence[str] | None = None, rows=None
     out = {}
     for c in columns:
         a = data[c]
-        if a.dtype.kind == "S":
+        if a.dtype.kind in "SU":                  # FITS strings are blank-padded
             a = np.char.strip(a.astype("U"))
         out[c] = _native(np.ascontiguousarray(a))
     return out
@@ -118,7 +118,7 @@ def iter_rows(path: str | Path, columns: Sequence[str], chunk: int, ext: int | s
             t = {}
             for c in columns:
                 a = data[c]
-                if a.dtype.kind == "S":
+                if a.dtype.kind in "SU":                  # FITS strings are blank-padded
                     a = np.char.strip(a.astype("U"))
                 t[c] = _native(np.ascontiguousarray(a))
             yield start, t

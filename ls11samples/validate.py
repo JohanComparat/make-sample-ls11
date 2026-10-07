@@ -104,6 +104,11 @@ def validate(paths, cfg: dict, sweeps: Sequence[Path], codes: Sequence[str] | No
     return out
 
 
+def _fmt(x, spec: str) -> str:
+    """``x`` formatted with ``spec``; 'n/a' when there is no value (a code without outputs)."""
+    return "n/a" if x is None or not np.isfinite(x) else format(x, spec)
+
+
 def report(out: dict) -> str:
     lines = [f"run {out['tag']}: {out['n_sweeps']} sweeps ({out['n_empty_sweeps']} empty), "
              f"{out['n_objects']} objects, {out['n_galaxies']} galaxies",
@@ -115,8 +120,8 @@ def report(out: dict) -> str:
     for c, p in out["percentiles_5_50_95"].items():
         lines.append(f"  {c:9s} " + "  ".join(f"{k} {v}" for k, v in p.items()))
     for k, v in out["vs_ref"].items():
-        lines.append(f"  {k}: dlogM median {v['dlogm_median']:+.3f} NMAD {v['dlogm_nmad']:.3f}; "
-                     f"dMr median {v['dmr_median']:+.3f} NMAD {v['dmr_nmad']:.3f}")
+        lines.append(f"  {k}: dlogM median {_fmt(v['dlogm_median'], '+.3f')} NMAD {_fmt(v['dlogm_nmad'], '.3f')}; "
+                     f"dMr median {_fmt(v['dmr_median'], '+.3f')} NMAD {_fmt(v['dmr_nmad'], '.3f')}")
     if "randoms" in out:
         r = out["randoms"]
         lines.append(f"randoms: {r['n']} over {r['area_deg2']:.2f} deg2 ({r['n_sweeps']} sweeps), {r['size_gb']} GB")

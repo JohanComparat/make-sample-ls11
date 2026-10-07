@@ -7,6 +7,10 @@ build/
 dist/
 docs/_build/
 .pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
 .ipynb_checkpoints/
 
 # data products and run outputs (they live under $LS11_OUT, never in the repo)

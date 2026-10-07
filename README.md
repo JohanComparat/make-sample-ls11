@@ -1,6 +1,7 @@
 # make-sample-ls11
 
 [![Documentation Status](https://readthedocs.org/projects/make-sample-ls11/badge/?version=latest)](https://make-sample-ls11.readthedocs.io/en/latest/)
+[![tests](https://github.com/JohanComparat/make-sample-ls11/actions/workflows/tests.yml/badge.svg)](https://github.com/JohanComparat/make-sample-ls11/actions/workflows/tests.yml)
 
 Volume-limited galaxy samples and matching randoms from the Legacy Surveys DR11
 (<https://www.legacysurvey.org/>), for clustering (`sum_stat`) and imaging systematics
@@ -152,8 +153,8 @@ set them in `cc_in2p3/env_ccin2p3.sh`.
 
 ```bash
 pip install -e .          # numpy, scipy, astropy, fitsio, healpy, pyyaml
-pip install -e .[sed]     # SED-fitting codes for steps 3-4
-pytest
+pip install -e .[sed]     # SED-fitting codes for step 4
+pip install -e .[test]    # then: pytest (about 20 s), pytest --cov
 ```
 
 Maintainer setup: on the laptop, use the shared `dev` env (`~/software/dev_env`). Do not create
