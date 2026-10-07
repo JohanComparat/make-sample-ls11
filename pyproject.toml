@@ -16,7 +16,6 @@ Homepage = "https://github.com/JohanComparat/make-sample-ls11"
 Documentation = "https://make-sample-ls11.readthedocs.io"
 
 [project.optional-dependencies]
-sed = ["kcorrect>=5.1", "lephare>=1.0", "dsps", "eazy", "pcigale"]
 test = ["pytest", "pytest-cov", "kcorrect>=5.1", "matplotlib", "configobj"]
 docs = ["sphinx", "furo", "myst-parser", "sphinx-copybutton"]
 

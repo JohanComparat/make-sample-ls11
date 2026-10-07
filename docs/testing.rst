@@ -3,9 +3,13 @@ Testing
 
 .. code-block:: bash
 
-   pip install -e .[test]       # pytest, pytest-cov, kcorrect, matplotlib, configobj
    pytest                       # about 20 s
    pytest --cov                 # with coverage of ls11samples and scripts (fails below 90%)
+
+They run in the core environment of :doc:`installation` (with ``pytest``, ``pytest-cov`` and
+``configobj``); the kcorrect steps of the end-to-end test need kcorrect and are skipped without it.
+The ``[test]`` extra (``pip install -e .[test]``) installs the same set and is what the continuous
+integration uses.
 
 The tests are fast and need no real data: ``tests/fake_dr11.py`` writes a small synthetic DR11
 tree (two sweeps of 3000 objects with real bit headers, one sweep whose header lacks ``MBIT_19``,

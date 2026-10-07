@@ -2,6 +2,9 @@
 
 [![Documentation Status](https://readthedocs.org/projects/make-sample-ls11/badge/?version=latest)](https://make-sample-ls11.readthedocs.io/en/latest/)
 [![tests](https://github.com/JohanComparat/make-sample-ls11/actions/workflows/tests.yml/badge.svg)](https://github.com/JohanComparat/make-sample-ls11/actions/workflows/tests.yml)
+[![coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)](https://github.com/JohanComparat/make-sample-ls11/actions/workflows/tests.yml)
+[![tested with pytest](https://img.shields.io/badge/tested%20with-pytest-0A9EDC?logo=pytest&logoColor=white)](https://make-sample-ls11.readthedocs.io/en/latest/testing.html)
+[![python](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)](https://make-sample-ls11.readthedocs.io/en/latest/installation.html)
 
 Volume-limited galaxy samples and matching randoms from the Legacy Surveys DR11
 (<https://www.legacysurvey.org/>), for clustering (`sum_stat`) and imaging systematics
@@ -151,18 +154,41 @@ set them in `cc_in2p3/env_ccin2p3.sh`.
 
 ## Install
 
+The SED-fitting codes have many dependencies and data files, and some are not on PyPI. They are
+not installed with the package: follow the recipes of the
+[installation page](https://make-sample-ls11.readthedocs.io/en/latest/installation.html) for the
+codes you need.
+
+**Core** (steps 1, 2, 5, 6, the tests):
+
 ```bash
-pip install -e .          # numpy, scipy, astropy, fitsio, healpy, pyyaml
-pip install -e .[sed]     # SED-fitting codes for step 4
-pip install -e .[test]    # then: pytest (about 20 s), pytest --cov
+conda create -n ls11 -c conda-forge python=3.12 numpy scipy astropy fitsio healpy pyyaml \
+    matplotlib pytest pytest-cov configobj
+conda activate ls11
+git clone https://github.com/JohanComparat/make-sample-ls11.git && cd make-sample-ls11
+python -m pip install --no-deps -e .
+pytest                                  # about 20 s, no data needed
 ```
 
-Maintainer setup: on the laptop, use the shared `dev` env (`~/software/dev_env`). Do not create
-a new environment.
+**SED codes** (step 4). Each code's recipe is on the installation page:
+
+| code | role | install | data (env variable) |
+|---|---|---|---|
+| kcorrect 5.1.9 | needed by every SED step (filter curves, Mr) | `pip install kcorrect==5.1.9` | in the wheel |
+| LePhare 1.0.0 | production masses | `pip install lephare==1.0.0`, then `04_stellar_mass.py --fetch` and `--prepare` (libraries, about 25 min) | 82 MB + 2.2 GB (`LEPHAREDIR`, `LEPHAREWORK`) |
+| CIGALE 2025.1 | production masses | git-lfs clone, `np.trapz` patch, `pip install ./cigale` (builds its database) | about 10 GB |
+| eazy 0.8.7 | benchmark | `pip install eazy==0.8.7` and clone eazy-photoz | 200 MB (`EAZY_DATA`) |
+| DSPS 0.4.8 | benchmark | `pip install dsps==0.4.8` and download the SSP file | 60 MB (`DSPS_DRN`) |
+
+`environment.yml` holds the core plus kcorrect and LePhare (it is used on CC-IN2P3 by
+`cc_in2p3/setup_env.sh`, which also installs CIGALE).
+
+Maintainer setup: on the laptop, use the shared `dev` / `dev-full` envs (`~/software/dev_env`). Do
+not create a new environment.
 
 ## Documentation
 
 Online at <https://make-sample-ls11.readthedocs.io>, rebuilt by Read the Docs at every push to
 `main` (`.readthedocs.yaml`, which installs only `docs/requirements.txt`). Sphinx sources are in
 `docs/` (installation, configuration, every step, methods, file formats, API). To build locally:
-`pip install -e .[docs]` then `make -C docs html`, and open `docs/_build/html/index.html`.
+`pip install -r docs/requirements.txt` then `make -C docs html`, and open `docs/_build/html/index.html`.
