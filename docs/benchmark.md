@@ -20,7 +20,7 @@ python benchmarks/sed_benchmark.py --codes kcorrect,lephare,cigale,eazy,dsps --n
 | `--n` | 10000 | galaxies: half with a spectroscopic redshift, the rest photo-z |
 | `--n-zsens` | 1000 | photo-z galaxies refitted at `BEST_Z` ± `BEST_Z_ERR` |
 | `--seed` | 2 | sample seed |
-| `--out` | `$LS11_OUT/benchmark` | output directory: per-code FITS files, `report.md`, figures |
+| `--out` | `$LS11_OUT/<tag>/benchmark` | output directory: per-code FITS files, `report.md`, figures |
 | `--dr10` | DR10 BGS-like LePhare catalogue | for the DR10 comparison |
 | `--overwrite` | | refit codes whose output exists |
 

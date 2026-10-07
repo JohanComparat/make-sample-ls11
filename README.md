@@ -4,6 +4,8 @@ Volume-limited galaxy samples and matching randoms from the Legacy Surveys DR11
 (<https://www.legacysurvey.org/>), for clustering (`sum_stat`) and imaging systematics
 (`sys_mapping`). It succeeds the DR10 BGS-like / `LS10_VLIM_*` samples.
 
+Documentation: <https://make-sample-ls11.readthedocs.io>
+
 ## Pipeline
 
 Per-sweep products sit next to the sweeps, one small file per sweep and product:
@@ -157,5 +159,7 @@ a new environment.
 
 ## Documentation
 
-Sphinx sources in `docs/` (installation, configuration, every step, methods, file formats, API):
+Online at <https://make-sample-ls11.readthedocs.io>, rebuilt by Read the Docs at every push to
+`main` (`.readthedocs.yaml`, which installs only `docs/requirements.txt`). Sphinx sources are in
+`docs/` (installation, configuration, every step, methods, file formats, API). To build locally:
 `pip install -e .[docs]` then `make -C docs html`, and open `docs/_build/html/index.html`.

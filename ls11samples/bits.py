@@ -12,23 +12,24 @@ from collections.abc import Iterable, Mapping
 
 import numpy as np
 
-#: DR11 MASKBITS, ``{bit: name}``.
 log = logging.getLogger(__name__)
 
+#: DR11 MASKBITS, ``{bit: name}``, as in the sweep headers (MBIT_n).
 MASKBITS = {
     0: "NPRIMARY", 1: "BRIGHT", 2: "SATUR_G", 3: "SATUR_R", 4: "SATUR_Z", 5: "ALLMASK_G",
     6: "ALLMASK_R", 7: "ALLMASK_Z", 8: "WISEM1", 9: "WISEM2", 10: "BAILOUT", 11: "MEDIUM",
     12: "GALAXY", 13: "CLUSTER", 14: "SATUR_I", 15: "ALLMASK_I", 16: "SUB_BLOB", 17: "RESOLVED",
     18: "MCLOUDS", 19: "WISE_GAIA",
 }
-#: DR11 FITBITS, ``{bit: name}``.
+#: DR11 FITBITS, ``{bit: name}``, as in the sweep headers (FBIT_n).
 FITBITS = {
     0: "FORCED_POINTSOURCE", 1: "FIT_BACKGROUND", 2: "HIT_RADIUS_LIMIT", 3: "HIT_SERSIC_LIMIT",
     4: "FROZEN", 5: "BRIGHT", 6: "MEDIUM", 7: "GAIA", 8: "TYCHO2", 9: "LARGEGALAXY", 10: "WALKER",
     11: "RUNNER", 12: "GAIA_POINTSOURCE", 13: "ITERATIVE",
 }
-#: Inverse mappings, ``{name: bit}``.
+#: Inverse mapping of :data:`MASKBITS`, ``{name: bit}``.
 MASKBIT = {v: k for k, v in MASKBITS.items()}
+#: Inverse mapping of :data:`FITBITS`, ``{name: bit}``.
 FITBIT = {v: k for k, v in FITBITS.items()}
 
 

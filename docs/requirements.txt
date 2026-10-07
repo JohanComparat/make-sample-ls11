@@ -1,8 +1,10 @@
-# Documentation build (fitsio, healpy and the SED codes are mocked in conf.py)
+# Documentation build (Read the Docs installs only this file). fitsio, healpy and the SED codes are
+# mocked in conf.py; scipy is needed by astropy.cosmology (ls11samples.cosmo and the modules using it).
 sphinx
 furo
 myst-parser
 sphinx-copybutton
 numpy
 astropy
+scipy
 pyyaml

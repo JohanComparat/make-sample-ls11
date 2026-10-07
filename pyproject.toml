@@ -11,6 +11,10 @@ requires-python = ">=3.10"
 authors = [{ name = "Johan Comparat", email = "johan.comparat@pm.me" }]
 dependencies = ["numpy", "scipy", "astropy", "fitsio", "healpy", "pyyaml"]
 
+[project.urls]
+Homepage = "https://github.com/JohanComparat/make-sample-ls11"
+Documentation = "https://make-sample-ls11.readthedocs.io"
+
 [project.optional-dependencies]
 sed = ["kcorrect>=5.1", "lephare>=1.0", "dsps", "eazy", "pcigale"]
 test = ["pytest"]
